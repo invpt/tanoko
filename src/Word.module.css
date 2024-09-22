@@ -1,0 +1,82 @@
+.Word {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.WordHeadline {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+}
+
+.WordTitle,
+.HeadlineSkewerSizer {
+    font-size: 1.75em;
+    font-family: "BIZ UDMincho";
+}
+
+.HeadlineSkewer {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.HeadlineSkewerSizer {
+    width: 0;
+    visibility: hidden;
+    user-select: none;
+}
+
+.HeadlineSpacer {
+    flex: 1;
+    height: 2px;
+    margin: 0 16px;
+    background-color: rgb(230, 230, 230);
+}
+
+.HeadlineBadge,
+button.HeadlineBadge {
+    border-radius: 8px;
+    font-size: 0.8em;
+    background-color: rgb(245, 245, 245);
+    color: rgb(97, 97, 97);
+    padding: 6px;
+}
+
+button.HeadlineBadge {
+    border: none;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+button.HeadlineBadge:hover {
+    background-color: black;
+    color: white;
+}
+
+.SensesWrapper {
+    margin: 12px 24px;
+}
+
+.WordSenses {
+    list-style-position: inside;
+    margin: unset;
+    padding: unset;
+}
+
+.WordPartOfSpeech {
+    color: gray;
+    font-size: 0.75em;
+}
+
+.WordSense {
+    margin-bottom: 0.5em;
+}
+
+.WordSense::marker {
+    font-size: 0.75em;
+    color: gray;
+}

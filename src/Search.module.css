@@ -1,0 +1,7 @@
+.Search {
+    display: flex;
+    flex-direction: column;
+    max-width: 800px;
+    padding: 32px;
+    margin: 0 auto;
+}

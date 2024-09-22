@@ -1,0 +1,7 @@
+node_modules
+dist
+.venv/
+
+scripts/jmdict*.json
+scripts/kanjidic2*.json
+src/assets/gen/

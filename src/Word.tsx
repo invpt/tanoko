@@ -5,7 +5,7 @@ import styles from "./Word.module.css";
 import { useSrs } from "./srs/srs";
 import { segmentReading, smartApproximateDuration } from "./util";
 
-const Word: Component<{ word: JMdictWord, onClick: () => void }> = (props) => {
+const Word: Component<{ word: JMdictWord; onClick: () => void }> = (props) => {
   const { snapshot } = useSrs();
 
   const reviewIn = () => {
@@ -30,14 +30,14 @@ const Word: Component<{ word: JMdictWord, onClick: () => void }> = (props) => {
   };
 
   const headline = () => {
-    if (props.word.kanji[0] != null) {
+    if (props.word.kanji[0] != null && props.word.kanji[0].common) {
       return props.word.kanji[0].text;
     } else {
       return props.word.kana[0].text;
     }
   };
   const headlineReading = () => {
-    if (props.word.kanji[0] != null) {
+    if (props.word.kanji[0] != null && props.word.kanji[0].common) {
       return props.word.kana[0].text;
     } else {
       return undefined;
@@ -55,18 +55,28 @@ const Word: Component<{ word: JMdictWord, onClick: () => void }> = (props) => {
             <div class={styles.HeadlineBadge}>Review {reviewIn()}</div>
           </Show>
           <Show when={!reviewIn()}>
-            <button class={styles.HeadlineBadge} onClick={props.onClick}>Add to deck</button>
+            <button class={styles.HeadlineBadge} onClick={props.onClick}>
+              Add to deck
+            </button>
           </Show>
         </div>
       </div>
-      <div class={styles.SensesWrapper}><WordSenses senses={props.word.sense} /></div>
+      <div class={styles.SensesWrapper}>
+        <WordSenses senses={props.word.sense} />
+      </div>
     </div>
   );
 };
 
-export const WordTitle: Component<{ word: JMdictWord, showReading?: boolean, consistentLayout?: boolean }> = (props) => {
-  const showReading = () => props.showReading === undefined ? true : props.showReading;
-  const consistentLayout = () => props.consistentLayout === undefined ? false : props.consistentLayout;
+export const WordTitle: Component<{
+  word: JMdictWord;
+  showReading?: boolean;
+  consistentLayout?: boolean;
+}> = (props) => {
+  const showReading = () =>
+    props.showReading === undefined ? true : props.showReading;
+  const consistentLayout = () =>
+    props.consistentLayout === undefined ? false : props.consistentLayout;
   const headline = () => {
     if (props.word.kanji[0] != null) {
       return props.word.kanji[0].text;
@@ -93,14 +103,21 @@ export const WordTitle: Component<{ word: JMdictWord, showReading?: boolean, con
 
   return (
     <>
-      <Show when={segments() && showReading() || consistentLayout()}>
+      <Show when={(segments() && showReading()) || consistentLayout()}>
         <ruby class={styles.WordTitle}>
-          <For each={segments()}>{(el) => (
-            <>{el.kanji}<rt>{el.reading}</rt></>
-          )}</For>
+          <For each={segments()}>
+            {(el) => (
+              <>
+                {el.kanji}
+                <rt>{el.reading}</rt>
+              </>
+            )}
+          </For>
         </ruby>
       </Show>
-      <Show when={!consistentLayout() && (!headlineReading() || !showReading())}>
+      <Show
+        when={!consistentLayout() && (!headlineReading() || !showReading())}
+      >
         <span class={styles.WordTitle}>{headline()}</span>
       </Show>
     </>
@@ -110,10 +127,16 @@ export const WordTitle: Component<{ word: JMdictWord, showReading?: boolean, con
 export const WordSenses: Component<{ senses: JMdictSense[] }> = (props) => {
   return (
     <ol class={styles.WordSenses}>
-      {props.senses.map(sense => (
+      {props.senses.map((sense) => (
         <>
-          {sense.partOfSpeech && <div class={styles.WordPartOfSpeech}>{sense.partOfSpeech.join("; ")}</div>}
-          <li class={styles.WordSense}>{sense.gloss.map(gloss => gloss.text).join("; ")}</li>
+          {sense.partOfSpeech && (
+            <div class={styles.WordPartOfSpeech}>
+              {sense.partOfSpeech.join("; ")}
+            </div>
+          )}
+          <li class={styles.WordSense}>
+            {sense.gloss.map((gloss) => gloss.text).join("; ")}
+          </li>
         </>
       ))}
     </ol>

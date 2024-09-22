@@ -16,6 +16,10 @@
     font-family: "BIZ UDMincho";
 }
 
+.HiddenReading {
+    visibility: hidden;
+}
+
 .HeadlineSkewer {
     flex: 1;
     display: flex;
@@ -49,7 +53,9 @@ button.HeadlineBadge {
     border: none;
     cursor: pointer;
     user-select: none;
-    transition: background-color 0.15s, color 0.15s;
+    transition:
+        background-color 0.15s,
+        color 0.15s;
 }
 
 button.HeadlineBadge:hover {

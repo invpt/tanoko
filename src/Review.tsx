@@ -19,8 +19,11 @@ const Review: Component = () => {
     return r.snapshot.availableReviews[0];
   };
 
-  const [firstAvailableRes] = createResource(firstAvailableRef, a => dict.get(a.id));
-  const firstAvailable = () => firstAvailableRef() !== undefined ? firstAvailableRes() : undefined;
+  const [firstAvailableRes] = createResource(firstAvailableRef, (a) =>
+    dict.get(a.id),
+  );
+  const firstAvailable = () =>
+    firstAvailableRef() !== undefined ? firstAvailableRes() : undefined;
 
   const [revealed, setRevealed] = createSignal(false);
 
@@ -46,15 +49,20 @@ const Review: Component = () => {
             const r = snapshot();
             switch (r.status) {
               case "loading":
-                return (
-                  <p>Loading your reviews...</p>
-                );
+                return <p>Loading your reviews...</p>;
               case "success":
                 if (r.snapshot.soonestReview !== undefined) {
                   return (
                     <>
                       <p>Nothing to review right now. 😌</p>
-                      <p>Your next review is on {r.snapshot.soonestReview.toLocaleString(undefined, { dateStyle: "long", timeStyle: "long" })}.</p>
+                      <p>
+                        Your next review is on{" "}
+                        {r.snapshot.soonestReview.toLocaleString(undefined, {
+                          dateStyle: "long",
+                          timeStyle: "long",
+                        })}
+                        .
+                      </p>
                     </>
                   );
                 } else {
@@ -66,25 +74,35 @@ const Review: Component = () => {
                   );
                 }
               case "failure":
-                return (
-                  <p>Failed to load your reviews. 😭</p>
-                );
+                return <p>Failed to load your reviews. 😭</p>;
             }
           })()}
         </div>
       </Show>
       <Show when={firstAvailable()}>
-        <div class={styles.Review} classList={{ [styles.Revealed]: revealed() }}>
+        <div
+          class={styles.Review}
+          classList={{ [styles.Revealed]: revealed() }}
+        >
           <div class={styles.ReviewFront}>
-            <WordTitle word={firstAvailable()!} showReading={revealed()} consistentLayout />
+            <WordTitle word={firstAvailable()!} showReading={revealed()} />
           </div>
           <div class={styles.ReviewBack}>
             <WordSenses senses={firstAvailable()?.sense ?? []} />
           </div>
           <div class={styles.ReviewButtons}>
-            <button class={styles.RevealButton} onClick={handleRevealClick}>Reveal</button>
-            <button class={styles.IncorrectButton} onClick={handleIncorrectClick}>Wrong</button>
-            <button class={styles.CorrectButton} onClick={handleCorrectClick}>Right</button>
+            <button class={styles.RevealButton} onClick={handleRevealClick}>
+              Reveal
+            </button>
+            <button
+              class={styles.IncorrectButton}
+              onClick={handleIncorrectClick}
+            >
+              Wrong
+            </button>
+            <button class={styles.CorrectButton} onClick={handleCorrectClick}>
+              Right
+            </button>
           </div>
         </div>
       </Show>

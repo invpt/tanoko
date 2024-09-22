@@ -71,12 +71,8 @@ const Word: Component<{ word: JMdictWord; onClick: () => void }> = (props) => {
 export const WordTitle: Component<{
   word: JMdictWord;
   showReading?: boolean;
-  consistentLayout?: boolean;
 }> = (props) => {
-  const showReading = () =>
-    props.showReading === undefined ? true : props.showReading;
-  const consistentLayout = () =>
-    props.consistentLayout === undefined ? false : props.consistentLayout;
+  const showReading = () => props.showReading ?? true;
   const headline = () => {
     if (props.word.kanji[0] != null) {
       return props.word.kanji[0].text;
@@ -103,23 +99,18 @@ export const WordTitle: Component<{
 
   return (
     <>
-      <Show when={(segments() && showReading()) || consistentLayout()}>
-        <ruby class={styles.WordTitle}>
-          <For each={segments()}>
-            {(el) => (
-              <>
-                {el.kanji}
-                <rt>{el.reading}</rt>
-              </>
-            )}
-          </For>
-        </ruby>
-      </Show>
-      <Show
-        when={!consistentLayout() && (!headlineReading() || !showReading())}
-      >
-        <span class={styles.WordTitle}>{headline()}</span>
-      </Show>
+      <ruby class={styles.WordTitle}>
+        <For each={segments()}>
+          {(el) => (
+            <>
+              {el.kanji}
+              <rt classList={{ [styles.HiddenReading]: !showReading() }}>
+                {el.reading}
+              </rt>
+            </>
+          )}
+        </For>
+      </ruby>
     </>
   );
 };

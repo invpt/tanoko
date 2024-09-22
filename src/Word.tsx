@@ -94,8 +94,8 @@ export const WordTitle: Component<{
   const segments = () => {
     const hl = headline();
     const hlr = headlineReading();
-    if (hl === undefined || hlr === undefined) {
-      return undefined;
+    if (hlr === undefined) {
+      return [{ kanji: hl, reading: "" }];
     }
 
     return segmentReading(hl, hlr);

@@ -1,5 +1,11 @@
 import { A, useLocation, useNavigate } from "@solidjs/router";
-import { Component, createEffect, createSignal, createUniqueId, onCleanup } from "solid-js";
+import {
+  Component,
+  createEffect,
+  createSignal,
+  createUniqueId,
+  onCleanup,
+} from "solid-js";
 
 import styles from "./Header.module.css";
 import { useSrs } from "./srs/srs";
@@ -10,10 +16,12 @@ const Header: Component = () => {
   const { snapshot: reviews } = useSrs();
   const [query, setQuery] = createSignal("");
 
+  const onSearchPage = () => location.pathname === "/search";
+
   const searchId = createUniqueId();
 
   createEffect(() => {
-    if (location.pathname === "/search") {
+    if (onSearchPage()) {
       if (location.query.query !== "") {
         setQuery(location.query.query);
       }
@@ -46,8 +54,19 @@ const Header: Component = () => {
         <span class={styles.TitleDeemph}>の</span>
         <span>ことば</span>
       </A>
-      <form class={styles.SearchBar} onSubmit={handleSearch}>
-        <input class={styles.SearchInput} type="text" onInput={(ev) => setQuery(ev.currentTarget.value)} value={query()} placeholder="Press / to focus" id={searchId} />
+      <form
+        class={styles.SearchBar}
+        classList={{ [styles.SearchBarOtherPage]: !onSearchPage() }}
+        onSubmit={handleSearch}
+      >
+        <input
+          class={styles.SearchInput}
+          type="text"
+          onInput={(ev) => setQuery(ev.currentTarget.value)}
+          value={query()}
+          placeholder="Press / to focus"
+          id={searchId}
+        />
         <input type="submit" class={styles.SearchButton} value="Search" />
       </form>
       <A class={styles.Reviews} href="/review">

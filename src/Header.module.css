@@ -70,6 +70,14 @@ header {
     background-color: white;
 }
 
+.SearchBarOtherPage {
+    color: #00000060;
+}
+
+.SearchBarOtherPage input:focus {
+    color: black;
+}
+
 .SearchInput {
     all: unset;
     padding: 0.5em;

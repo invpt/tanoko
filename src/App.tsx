@@ -1,13 +1,13 @@
-import { ParentProps, Show, type Component } from 'solid-js';
-import Search from './Search';
-import Review from './Review';
+import { ParentProps, Show, type Component } from "solid-js";
+import Search from "./Search";
+import Review from "./Review";
 
 import styles from "./App.module.css";
-import { DictProvider, useDictStatus } from './dict/dict';
-import { Route, Router } from '@solidjs/router';
-import { SrsProvider } from './srs/srs';
-import Header from './Header';
-import Home from './Home';
+import { useDictStatus } from "./dict/dict";
+import { Route, Router } from "@solidjs/router";
+import { SrsProvider } from "./srs/srs";
+import Header from "./Header";
+import Home from "./Home";
 
 const App: Component = () => {
   return (
@@ -21,17 +21,15 @@ const App: Component = () => {
 
 const Root: Component<ParentProps> = (props) => {
   return (
-    <DictProvider>
-      <SrsProvider>
-        <LoadingGate>
-          <div class={styles.Root}>
-            <Header />
-            {props.children}
-          </div>
-        </LoadingGate>
-      </SrsProvider>
-    </DictProvider>
-  )
+    <SrsProvider>
+      <LoadingGate>
+        <div class={styles.Root}>
+          <Header />
+          {props.children}
+        </div>
+      </LoadingGate>
+    </SrsProvider>
+  );
 };
 
 const LoadingGate: Component<ParentProps> = (props) => {
@@ -45,8 +43,8 @@ const LoadingGate: Component<ParentProps> = (props) => {
           return (
             <div class={styles.Loading}>
               <p>Loading...</p>
-              <Show when={s.words !== 0}>
-                <p>{s.words} words imported</p>
+              <Show when={s.itemsLoaded !== 0}>
+                <p>{s.itemsLoaded} items loaded</p>
               </Show>
             </div>
           );

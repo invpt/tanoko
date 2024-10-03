@@ -1,15 +1,14 @@
 import { createResource, createSignal, Show, type Component } from "solid-js";
 import { useSrs } from "./srs/srs";
-import { useDict } from "./dict/dict";
 
 import styles from "./Review.module.css";
 import { WordSenses, WordTitle } from "./Word";
+import { dict } from "./dict/dict";
 
 const Review: Component = () => {
-  const dict = useDict();
   const { snapshot, review } = useSrs();
 
-  const firstAvailableRef = () => {
+  const firstAvailable = () => {
     const r = snapshot();
 
     if (r.status !== "success" || r.snapshot.availableReviews.length === 0) {
@@ -19,12 +18,6 @@ const Review: Component = () => {
     return r.snapshot.availableReviews[0];
   };
 
-  const [firstAvailableRes] = createResource(firstAvailableRef, (a) =>
-    dict.get(a.id),
-  );
-  const firstAvailable = () =>
-    firstAvailableRef() !== undefined ? firstAvailableRes() : undefined;
-
   const [revealed, setRevealed] = createSignal(false);
 
   const handleRevealClick = () => {
@@ -32,12 +25,12 @@ const Review: Component = () => {
   };
 
   const handleCorrectClick = async () => {
-    await review(firstAvailableRef()!.type, firstAvailableRef()!.id, true);
+    await review(firstAvailable()!.type, firstAvailable()!.word.id, true);
     setRevealed(false);
   };
 
   const handleIncorrectClick = async () => {
-    await review(firstAvailableRef()!.type, firstAvailableRef()!.id, false);
+    await review(firstAvailable()!.type, firstAvailable()!.word.id, false);
     setRevealed(false);
   };
 
@@ -85,10 +78,10 @@ const Review: Component = () => {
           classList={{ [styles.Revealed]: revealed() }}
         >
           <div class={styles.ReviewFront}>
-            <WordTitle word={firstAvailable()!} showReading={revealed()} />
+            <WordTitle word={firstAvailable()!.word} showReading={revealed()} />
           </div>
           <div class={styles.ReviewBack}>
-            <WordSenses senses={firstAvailable()?.sense ?? []} />
+            <WordSenses senses={firstAvailable()?.word.sense ?? []} />
           </div>
           <div class={styles.ReviewButtons}>
             <button class={styles.RevealButton} onClick={handleRevealClick}>

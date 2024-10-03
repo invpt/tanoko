@@ -69,19 +69,24 @@ const Header: Component = () => {
         />
         <input type="submit" class={styles.SearchButton} value="Search" />
       </form>
-      <A class={styles.Reviews} href="/review">
-        {(() => {
-          const r = reviews();
-          switch (r.status) {
-            case "loading":
-              return "Loading...";
-            case "success":
-              return `Review ${r.snapshot.availableReviews.length} item${r.snapshot.availableReviews.length !== 1 ? "s" : ""}`;
-            case "failure":
-              return "Couldn't load reviews";
-          }
-        })()}
-      </A>
+      <div class={styles.Buttons}>
+        <A class={styles.Reviews} href="/review">
+          {(() => {
+            const r = reviews();
+            switch (r.status) {
+              case "loading":
+                return "Loading...";
+              case "success":
+                return `Review (${r.snapshot.availableReviews.length})`;
+              case "failure":
+                return "Couldn't load reviews";
+            }
+          })()}
+        </A>
+        <A class={styles.Settings} href="/settings">
+          Settings
+        </A>
+      </div>
     </header>
   );
 };

@@ -8,6 +8,7 @@ import { Route, Router } from "@solidjs/router";
 import { SrsProvider } from "./srs/srs";
 import Header from "./Header";
 import Home from "./Home";
+import Settings from "./Settings";
 
 const App: Component = () => {
   return (
@@ -15,6 +16,7 @@ const App: Component = () => {
       <Route path="/" component={Home} />
       <Route path="/search" component={Search} />
       <Route path="/review" component={Review} />
+      <Route path="/settings" component={Settings} />
     </Router>
   );
 };

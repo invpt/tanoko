@@ -81,7 +81,7 @@ export const dict = {
   },
   async search(query: string) {
     const dict = await dictPromise();
-    return await dict.search(query);
+    return dict.search(query);
   },
   async loadWord(id: string) {
     const dict = await dictPromise();
@@ -130,19 +130,16 @@ class Dict {
     this.wordIndex = wordIndex;
   }
 
-  async search(query: string) {
-    const resultIds = this.wordIndex.search(query);
-    const results: JMdictWord[] = [];
-    for (const resultId of resultIds) {
+  async *search(query: string) {
+    for (const resultId of this.wordIndex.search(query)) {
       const result = await this.loadWord(resultId);
       if (result === undefined) {
         console.warn("Ignoring word search result with no dictionary entry");
         continue;
       } else {
-        results.push(result);
+        yield result;
       }
     }
-    return results;
   }
 
   async loadWord(id: string): Promise<JMdictWord | undefined> {
@@ -177,12 +174,11 @@ class Index {
     return new Index(index);
   }
 
-  search(query: string) {
-    const results: string[] = [];
+  *search(query: string) {
     const index = this.index;
 
     let start = 0;
-    while (results.length < 10) {
+    while (true) {
       const i = index.indexOf(query, start);
       if (i < 0) {
         break;
@@ -200,14 +196,10 @@ class Index {
         }
 
         const result = index.substring(unit + 1, record);
-        if (!results.some((x) => x === result)) {
-          results.push(result);
-        }
+        yield result;
         start = record + 1;
       }
     }
-
-    return results;
   }
 }
 

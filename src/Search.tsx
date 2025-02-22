@@ -12,7 +12,16 @@ const Search: Component = () => {
   const { add } = useSrs();
   const [results] = createResource(
     () => location.query["query"],
-    (query) => dict.search(query),
+    async (query) => {
+      const results: JMdictWord[] = [];
+      for await (const result of await dict.search(query)) {
+        results.push(result);
+        if (results.length >= 100) {
+          break;
+        }
+      }
+      return results;
+    },
   );
 
   const handleWordClick = async (word: JMdictWord) => {

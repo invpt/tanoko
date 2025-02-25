@@ -177,6 +177,8 @@ class Index {
   *search(query: string) {
     const index = this.index;
 
+    const alreadyYielded = new Set();
+
     let start = 0;
     while (true) {
       const i = index.indexOf(query, start);
@@ -196,7 +198,10 @@ class Index {
         }
 
         const result = index.substring(unit + 1, record);
-        yield result;
+        if (!alreadyYielded.has(result)) {
+          alreadyYielded.add(result);
+          yield result;
+        }
         start = record + 1;
       }
     }

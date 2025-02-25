@@ -18,9 +18,6 @@ with open("src/assets/gen/kanjidic-meta.json", "w") as f:
     del copied["characters"]
     json.dump(copied, f)
 
-for word in jmdata["words"]:
-    pass
-
 with open("src/assets/gen/jmdict-words.txt", "w") as f:
     for word in jmdata["words"]:
         f.write(word["id"] + "\x1F")

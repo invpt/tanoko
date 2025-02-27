@@ -29,21 +29,6 @@ const Word: Component<{ word: JMdictWord; onClick: () => void }> = (props) => {
     }
   };
 
-  const headline = () => {
-    if (props.word.kanji[0] != null && props.word.kanji[0].common) {
-      return props.word.kanji[0].text;
-    } else {
-      return props.word.kana[0].text;
-    }
-  };
-  const headlineReading = () => {
-    if (props.word.kanji[0] != null && props.word.kanji[0].common) {
-      return props.word.kana[0].text;
-    } else {
-      return undefined;
-    }
-  };
-
   return (
     <div class={styles.Word}>
       <div class={styles.WordHeadline}>

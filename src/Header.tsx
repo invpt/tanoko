@@ -4,6 +4,7 @@ import {
   createEffect,
   createSignal,
   createUniqueId,
+  JSX,
   onCleanup,
 } from "solid-js";
 
@@ -42,6 +43,20 @@ const Header: Component = () => {
     onCleanup(() => document.removeEventListener("keydown", listener));
   });
 
+  const handleSearchInput: JSX.InputEventHandlerUnion<
+    HTMLInputElement,
+    InputEvent
+  > = (ev) => {
+    const query = ev.currentTarget.value;
+    setQuery(query);
+    if (onSearchPage()) {
+      navigate(`/search?query=${encodeURIComponent(query)}`, {
+        replace: true,
+        scroll: false,
+      });
+    }
+  };
+
   const handleSearch = (ev: Event) => {
     ev.preventDefault();
     navigate(`/search?query=${encodeURIComponent(query())}`);
@@ -62,7 +77,7 @@ const Header: Component = () => {
         <input
           class={styles.SearchInput}
           type="text"
-          onInput={(ev) => setQuery(ev.currentTarget.value)}
+          onInput={handleSearchInput}
           value={query()}
           placeholder="Press / to focus"
           id={searchId}

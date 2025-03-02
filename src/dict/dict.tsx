@@ -15,6 +15,7 @@ import {
 } from "solid-js";
 import { IDBPDatabase } from "idb";
 import { DictDbSchema, openDictDb } from "./db";
+import jmdictIndexUrl from "../assets/gen/jmdict-index.dsv?url";
 
 type ImportStatus =
   | {
@@ -120,7 +121,7 @@ class Dict {
         };
       }),
       openDictDb(),
-      Index.load("/src/assets/gen/jmdict-index.dsv"),
+      Index.load(jmdictIndexUrl),
     ]);
     return new Dict(db, wordIndex);
   }

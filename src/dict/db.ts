@@ -1,4 +1,6 @@
 import { IDBPDatabase, openDB } from "idb";
+import jmdictWordsUrl from "../assets/gen/jmdict-words.dsv?url";
+import kanjidicKanjiUrl from "../assets/gen/kanjidic-kanji.dsv?url";
 
 export type DictDbSchema = {
   jmdict: {
@@ -39,20 +41,14 @@ export async function runImport(
 ): Promise<number> {
   const db = await openDictDb();
 
-  const totalJmdict = await importDsv(
-    db,
-    "jmdict",
-    "/src/assets/gen/jmdict-words.dsv",
-    (n) => progressCallback?.(n),
+  const totalJmdict = await importDsv(db, "jmdict", jmdictWordsUrl, (n) =>
+    progressCallback?.(n),
   );
 
   return (
     totalJmdict +
-    (await importDsv(
-      db,
-      "kanjidic",
-      "/src/assets/gen/kanjidic-kanji.dsv",
-      (n) => progressCallback?.(totalJmdict + n),
+    (await importDsv(db, "kanjidic", kanjidicKanjiUrl, (n) =>
+      progressCallback?.(totalJmdict + n),
     ))
   );
 }

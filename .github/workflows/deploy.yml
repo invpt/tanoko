@@ -35,7 +35,7 @@ jobs:
           endpoint = $ENDPOINT
           EOF
       - name: Download data
-        run: download-data.sh
+        run: ./download-data.sh
       - name: Generate assets
         run: bun run generate/generate.ts
       - name: Build

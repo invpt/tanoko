@@ -1,0 +1,44 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2.0.1
+      - name: Download rclone
+        run: |
+          curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip rclone-current-linux-amd64.zip
+          mv rclone-*-linux-amd64/rclone .
+          chmod +x rclone
+      - name: Configure rclone
+        env:
+          ACCESS_KEY_ID: ${{ secrets.access_key_id }}
+          SECRET_ACCESS_KEY: ${{ secrets.secret_access_key }}
+          ENDPOINT: ${{ secrets.endpoint }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat >> ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = $ACCESS_KEY_ID
+          secret_access_key = $SECRET_ACCESS_KEY
+          region = auto
+          endpoint = $ENDPOINT
+          EOF
+      - name: Download data
+        run: download-data.sh
+      - name: Generate assets
+        run: bun run generate/generate.ts
+      - name: Build
+        run: bun run build
+      - name: Deploy with rclone
+        run: rclone sync dist/ r2:tanoko/

@@ -1,16 +1,17 @@
 {
-  "name": "vite-template-solid",
+  "name": "tanoko",
   "version": "0.0.0",
   "description": "",
   "scripts": {
     "start": "vite",
     "dev": "vite",
     "build": "vite build",
-    "serve": "vite preview"
+    "serve": "vite preview",
+    "generate": "bun run generate/generate.ts"
   },
   "license": "MIT",
   "devDependencies": {
-    "@scriptin/jmdict-simplified-types": "^3.5.0",
+    "@scriptin/jmdict-simplified-types": "^3.6.1",
     "solid-devtools": "^0.29.2",
     "typescript": "^5.3.3",
     "vite": "^5.0.11",

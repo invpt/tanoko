@@ -120,7 +120,7 @@ class Dict {
         };
       }),
       openDictDb(),
-      Index.load("/src/assets/gen/jmdict-index.txt"),
+      Index.load("/src/assets/gen/jmdict-index.dsv"),
     ]);
     return new Dict(db, wordIndex);
   }

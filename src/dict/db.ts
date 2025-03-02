@@ -42,7 +42,7 @@ export async function runImport(
   const totalJmdict = await importDsv(
     db,
     "jmdict",
-    "/src/assets/gen/jmdict-words.txt",
+    "/src/assets/gen/jmdict-words.dsv",
     (n) => progressCallback?.(n),
   );
 
@@ -51,7 +51,7 @@ export async function runImport(
     (await importDsv(
       db,
       "kanjidic",
-      "/src/assets/gen/kanjidic-kanji.txt",
+      "/src/assets/gen/kanjidic-kanji.dsv",
       (n) => progressCallback?.(totalJmdict + n),
     ))
   );

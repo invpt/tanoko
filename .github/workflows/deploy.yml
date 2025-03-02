@@ -36,11 +36,11 @@ jobs:
           EOF
       - name: Download data
         run: ./download-data.sh
-      - name: Generate assets
-        run: bun run generate/generate.ts
       - name: Install dependencies
         run: bun install
+      - name: Generate assets
+        run: bun run generate/generate.ts
       - name: Build
         run: bun run build
       - name: Deploy with rclone
-        run: rclone sync dist/ r2:tanoko/
+        run: ./rclone sync dist/ r2:tanoko/

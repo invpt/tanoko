@@ -3,6 +3,19 @@
     text-align: center;
 }
 
+.LoadingState,
+.ErrorState {
+    margin: 32px;
+    text-align: center;
+    padding: 48px 24px;
+}
+
+.LoadingState p,
+.ErrorState p {
+    margin: 0;
+    font-size: 16px;
+}
+
 .Review {
     display: grid;
     grid-template-rows: 1fr 2fr auto;

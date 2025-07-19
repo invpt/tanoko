@@ -5,3 +5,18 @@
     padding: 32px;
     margin: 0 auto;
 }
+
+.EmptyState,
+.LoadingState,
+.ErrorState {
+    text-align: center;
+    padding: 48px 24px;
+    color: #6b7280;
+}
+
+.EmptyState p,
+.LoadingState p,
+.ErrorState p {
+    margin: 0;
+    font-size: 16px;
+}

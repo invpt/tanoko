@@ -3,10 +3,11 @@ import { useSrs } from "./srs/srs";
 
 import styles from "./Review.module.css";
 import { WordSenses, WordTitle } from "./Word";
-import { dict } from "./dict/dict";
+import { dict, useDictStatus } from "./dict/dict";
 
 const Review: Component = () => {
   const { snapshot, review } = useSrs();
+  const dictStatus = useDictStatus();
 
   const firstAvailable = () => {
     const r = snapshot();
@@ -25,79 +26,104 @@ const Review: Component = () => {
   };
 
   const handleCorrectClick = async () => {
-    await review(firstAvailable()!.type, firstAvailable()!.word.id, true);
-    setRevealed(false);
+    try {
+      await review(firstAvailable()!.type, firstAvailable()!.word.id, true);
+      setRevealed(false);
+    } catch (error) {
+      console.error("Failed to record correct review:", error);
+    }
   };
 
   const handleIncorrectClick = async () => {
-    await review(firstAvailable()!.type, firstAvailable()!.word.id, false);
-    setRevealed(false);
+    try {
+      await review(firstAvailable()!.type, firstAvailable()!.word.id, false);
+      setRevealed(false);
+    } catch (error) {
+      console.error("Failed to record incorrect review:", error);
+    }
   };
 
   return (
     <>
-      <Show when={!firstAvailable()}>
-        <div class={styles.Nothing}>
-          {(() => {
-            const r = snapshot();
-            switch (r.status) {
-              case "loading":
-                return <p>Loading your reviews...</p>;
-              case "success":
-                if (r.snapshot.soonestReview !== undefined) {
-                  return (
-                    <>
-                      <p>Nothing to review right now. 😌</p>
-                      <p>
-                        Your next review is on{" "}
-                        {r.snapshot.soonestReview.toLocaleString(undefined, {
-                          dateStyle: "long",
-                          timeStyle: "long",
-                        })}
-                        .
-                      </p>
-                    </>
-                  );
-                } else {
-                  return (
-                    <>
-                      <p>Nothing to review right now. 😌</p>
-                      <p>Try clicking on a word to add it to your SRS.</p>
-                    </>
-                  );
-                }
-              case "failure":
-                return <p>Failed to load your reviews. 😭</p>;
-            }
-          })()}
+      <Show when={dictStatus().status === "loading"}>
+        <div class={styles.LoadingState}>
+          <p>Dictionary is still loading... Reviews will be available soon.</p>
         </div>
       </Show>
-      <Show when={firstAvailable()}>
-        <div
-          class={styles.Review}
-          classList={{ [styles.Revealed]: revealed() }}
-        >
-          <div class={styles.ReviewFront}>
-            <WordTitle word={firstAvailable()!.word} showReading={revealed()} />
-          </div>
-          <div class={styles.ReviewBack}>
-            <WordSenses senses={firstAvailable()?.word.sense ?? []} />
-          </div>
-          <div class={styles.ReviewButtons}>
-            <button class={styles.RevealButton} onClick={handleRevealClick}>
-              Reveal
-            </button>
-            <button
-              class={styles.IncorrectButton}
-              onClick={handleIncorrectClick}
-            >
-              Wrong
-            </button>
-            <button class={styles.CorrectButton} onClick={handleCorrectClick}>
-              Right
-            </button>
-          </div>
+
+      <Show when={dictStatus().status === "failure"}>
+        <div class={styles.ErrorState}>
+          <p>Dictionary failed to load. Reviews are not available.</p>
         </div>
+      </Show>
+
+      <Show when={dictStatus().status === "ready"}>
+        <Show when={!firstAvailable()}>
+          <div class={styles.Nothing}>
+            {(() => {
+              const r = snapshot();
+              switch (r.status) {
+                case "loading":
+                  return <p>Loading your reviews...</p>;
+                case "success":
+                  if (r.snapshot.soonestReview !== undefined) {
+                    return (
+                      <>
+                        <p>Nothing to review right now. 😌</p>
+                        <p>
+                          Your next review is on{" "}
+                          {r.snapshot.soonestReview.toLocaleString(undefined, {
+                            dateStyle: "long",
+                            timeStyle: "long",
+                          })}
+                          .
+                        </p>
+                      </>
+                    );
+                  } else {
+                    return (
+                      <>
+                        <p>Nothing to review right now. 😌</p>
+                        <p>Try clicking on a word to add it to your SRS.</p>
+                      </>
+                    );
+                  }
+                case "failure":
+                  return <p>Failed to load your reviews. 😭</p>;
+              }
+            })()}
+          </div>
+        </Show>
+        <Show when={firstAvailable()}>
+          <div
+            class={styles.Review}
+            classList={{ [styles.Revealed]: revealed() }}
+          >
+            <div class={styles.ReviewFront}>
+              <WordTitle
+                word={firstAvailable()!.word}
+                showReading={revealed()}
+              />
+            </div>
+            <div class={styles.ReviewBack}>
+              <WordSenses senses={firstAvailable()?.word.sense ?? []} />
+            </div>
+            <div class={styles.ReviewButtons}>
+              <button class={styles.RevealButton} onClick={handleRevealClick}>
+                Reveal
+              </button>
+              <button
+                class={styles.IncorrectButton}
+                onClick={handleIncorrectClick}
+              >
+                Wrong
+              </button>
+              <button class={styles.CorrectButton} onClick={handleCorrectClick}>
+                Right
+              </button>
+            </div>
+          </div>
+        </Show>
       </Show>
     </>
   );

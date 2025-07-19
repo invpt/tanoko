@@ -21,6 +21,7 @@
     "@koozaki/romaji-conv": "^2.0.31",
     "@solidjs/router": "^0.14.10",
     "idb": "^8.0.2",
-    "solid-js": "^1.9.5"
+    "solid-js": "^1.9.5",
+    "wanakana": "^5.3.1"
   }
 }

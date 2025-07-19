@@ -24,43 +24,11 @@ const App: Component = () => {
 const Root: Component<ParentProps> = (props) => {
   return (
     <SrsProvider>
-      <LoadingGate>
-        <div class={styles.Root}>
-          <Header />
-          {props.children}
-        </div>
-      </LoadingGate>
+      <div class={styles.Root}>
+        <Header />
+        {props.children}
+      </div>
     </SrsProvider>
-  );
-};
-
-const LoadingGate: Component<ParentProps> = (props) => {
-  const status = useDictStatus();
-
-  return (
-    <>
-      {(() => {
-        const s = status();
-        if (s.status === "loading") {
-          return (
-            <div class={styles.Loading}>
-              <p>Loading...</p>
-              <Show when={s.itemsLoaded !== 0}>
-                <p>{s.itemsLoaded} items loaded</p>
-              </Show>
-            </div>
-          );
-        } else if (s.status === "failure") {
-          return (
-            <div class={styles.Failure}>
-              Something went wrong. Try refreshing the page.
-            </div>
-          );
-        } else {
-          return props.children;
-        }
-      })()}
-    </>
   );
 };
 

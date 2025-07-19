@@ -2,29 +2,22 @@ import {
   JMdictWord,
   Kanjidic2Character,
 } from "@scriptin/jmdict-simplified-types";
-import DictWorker from "./dictWorker?worker";
-import ImportWorker from "./importWorker?worker";
-import {
-  Component,
-  createContext,
-  createEffect,
-  createSignal,
-  onCleanup,
-  ParentProps,
-  useContext,
-} from "solid-js";
+import ImportWorker from "./db-import-worker?worker";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import { IDBPDatabase } from "idb";
 import { DictDbSchema, openDictDb } from "./db";
-import jmdictIndexUrl from "../assets/gen/jmdict-index.dsv?url";
+import jmdictIndexUrl from "../assets/gen/jmdict-index-english.dsv?url";
+import jmdictIndexNativeUrl from "../assets/gen/jmdict-index-native.dsv?url";
+
+export type QueryType = "english" | "native";
 
 type ImportStatus =
   | {
       status: "loading";
-      items: number;
+      bytes: number;
     }
   | {
       status: "success";
-      items: number;
     }
   | {
       status: "failure";
@@ -34,7 +27,7 @@ type ImportStatus =
 type DictStatus =
   | {
       status: "loading";
-      itemsLoaded: number;
+      bytes: number;
     }
   | {
       status: "failure";
@@ -44,52 +37,58 @@ type DictStatus =
       status: "ready";
     };
 
-type DictStatusListener = (status: DictStatus) => void;
+let status: DictStatus = { status: "loading", bytes: 0 };
 
-let dictStatus: DictStatus = { status: "loading", itemsLoaded: 0 };
-const dictStatusListeners: DictStatusListener[] = [];
-let _dictPromise: Promise<Dict> | undefined;
-const dictPromise = () => {
-  if (_dictPromise === undefined) {
-    _dictPromise = Dict.load((itemsLoaded) => {
-      dictStatus = { status: "loading", itemsLoaded };
-      dictStatusListeners.forEach((listener) => listener(dictStatus));
+const statusListeners: ((status: DictStatus) => void)[] = [];
+
+let _load: Promise<Dict> | undefined;
+const load = () => {
+  if (_load === undefined) {
+    _load = Dict.load((bytes) => {
+      status = { status: "loading", bytes };
+      statusListeners.forEach((listener) => listener(status));
     });
-    _dictPromise
+    _load
       .then(() => {
-        dictStatus = { status: "ready" };
-        dictStatusListeners.forEach((listener) => listener(dictStatus));
+        status = { status: "ready" };
+        statusListeners.forEach((listener) => listener(status));
       })
       .catch((error) => {
-        dictStatus = { status: "failure", error };
-        dictStatusListeners.forEach((listener) => listener(dictStatus));
+        status = { status: "failure", error };
+        statusListeners.forEach((listener) => listener(status));
       });
   }
 
-  return _dictPromise;
+  return _load;
 };
+
+export function useDictStatus() {
+  const [status, setStatus] = createSignal(dict.status);
+  createEffect(() => {
+    statusListeners.push(setStatus);
+    onCleanup(() =>
+      statusListeners.splice(statusListeners.indexOf(setStatus), 1),
+    );
+  });
+  return status;
+}
+
 export const dict = {
   get status() {
     // trigger loading if it has not already started
-    dictPromise();
-    return dictStatus;
+    load();
+    return status;
   },
-  addStatusListener(listener: DictStatusListener) {
-    dictStatusListeners.push(listener);
-  },
-  removeStatusListener(listener: DictStatusListener) {
-    dictStatusListeners.splice(dictStatusListeners.indexOf(listener), 1);
-  },
-  async search(query: string) {
-    const dict = await dictPromise();
-    return dict.search(query);
+  async search(query: string, queryType: QueryType) {
+    const dict = await load();
+    return dict.search(query, queryType);
   },
   async loadWord(id: string) {
-    const dict = await dictPromise();
+    const dict = await load();
     return await dict.loadWord(id);
   },
   async loadKanji(literal: string) {
-    const dict = await dictPromise();
+    const dict = await load();
     return await dict.loadKanji(literal);
   },
 };
@@ -97,16 +96,17 @@ export const dict = {
 class Dict {
   private db: IDBPDatabase<DictDbSchema>;
   private wordIndex: Index;
+  private nativeWordIndex: Index;
 
-  static async load(progress: (items: number) => void) {
-    const [, db, wordIndex] = await Promise.all([
+  static async load(progress: (bytes: number) => void) {
+    const [, db, wordIndex, nativeWordIndex] = await Promise.all([
       new Promise((resolve, reject) => {
         const importWorker = new ImportWorker();
         importWorker.onmessage = (msg) => {
           const importStatus: ImportStatus = msg.data;
           switch (importStatus.status) {
             case "loading":
-              progress(importStatus.items);
+              progress(importStatus.bytes);
               break;
             case "failure":
               reject(importStatus.error);
@@ -122,17 +122,25 @@ class Dict {
       }),
       openDictDb(),
       Index.load(jmdictIndexUrl),
+      Index.load(jmdictIndexNativeUrl),
     ]);
-    return new Dict(db, wordIndex);
+    return new Dict(db, wordIndex, nativeWordIndex);
   }
 
-  private constructor(db: IDBPDatabase<DictDbSchema>, wordIndex: Index) {
+  private constructor(
+    db: IDBPDatabase<DictDbSchema>,
+    wordIndex: Index,
+    nativeWordIndex: Index,
+  ) {
     this.db = db;
     this.wordIndex = wordIndex;
+    this.nativeWordIndex = nativeWordIndex;
   }
 
-  async *search(query: string) {
-    for (const resultId of this.wordIndex.search(query)) {
+  async *search(query: string, queryType: QueryType) {
+    const index =
+      queryType === "native" ? this.nativeWordIndex : this.wordIndex;
+    for (const resultId of index.search(query)) {
       const result = await this.loadWord(resultId);
       if (result === undefined) {
         console.warn("Ignoring word search result with no dictionary entry");
@@ -207,13 +215,4 @@ class Index {
       }
     }
   }
-}
-
-export function useDictStatus() {
-  const [status, setStatus] = createSignal(dict.status);
-  createEffect(() => {
-    dict.addStatusListener(setStatus);
-    onCleanup(() => dict.removeStatusListener(setStatus));
-  });
-  return status;
 }

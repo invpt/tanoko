@@ -6,16 +6,21 @@ import {
   createUniqueId,
   JSX,
   onCleanup,
+  Show,
 } from "solid-js";
 
 import styles from "./Header.module.css";
 import { useSrs } from "./srs/srs";
+import { useDictStatus } from "./dict/dict";
+import { debounce } from "./util";
 
 const Header: Component = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { snapshot: reviews } = useSrs();
+  const dictStatus = useDictStatus();
   const [query, setQuery] = createSignal("");
+  const [debouncedQuery, setDebouncedQuery] = createSignal("");
 
   const onSearchPage = () => location.pathname === "/search";
 
@@ -23,9 +28,34 @@ const Header: Component = () => {
 
   createEffect(() => {
     if (onSearchPage()) {
-      if (location.query.query !== "") {
-        setQuery(location.query.query);
-      }
+      const queryParam = location.query.query;
+      const newQuery = Array.isArray(queryParam) ? queryParam[0] : queryParam;
+      setQuery(newQuery);
+      setDebouncedQuery(newQuery); // Initialize debounced query immediately
+    } else {
+      setQuery("");
+      setDebouncedQuery("");
+    }
+  });
+
+  const debouncedSetDebouncedQuery = debounce(setDebouncedQuery, 250); // 500ms debounce
+
+  createEffect(() => {
+    // When the raw query changes, update the debounced query
+    // This effect runs on every keystroke, but debouncedSetDebouncedQuery
+    // will delay the actual update to debouncedQuery.
+    if (onSearchPage()) {
+      debouncedSetDebouncedQuery(query());
+    }
+  });
+
+  createEffect(() => {
+    // When the debounced query changes, perform the navigation
+    if (onSearchPage() && debouncedQuery() !== location.query.query) {
+      navigate(`/search?query=${encodeURIComponent(debouncedQuery())}`, {
+        replace: true,
+        scroll: false,
+      });
     }
   });
 
@@ -49,12 +79,7 @@ const Header: Component = () => {
   > = (ev) => {
     const query = ev.currentTarget.value;
     setQuery(query);
-    if (onSearchPage()) {
-      navigate(`/search?query=${encodeURIComponent(query)}`, {
-        replace: true,
-        scroll: false,
-      });
-    }
+    // Navigation is now handled by the createEffect watching debouncedQuery
   };
 
   const handleSearch = (ev: Event) => {
@@ -68,6 +93,20 @@ const Header: Component = () => {
         <span>ただ</span>
         <span class={styles.TitleDeemph}>の</span>
         <span>ことば</span>
+        <Show when={dictStatus().status !== "ready"}>
+          <span class={styles.LoadingIndicator}>
+            {(() => {
+              const s = dictStatus();
+              if (s.status === "loading") {
+                return s.bytes > 0
+                  ? `(${(s.bytes / 1024 / 1024).toFixed(1)}MiB imported)`
+                  : "(loading)";
+              } else if (s.status === "failure") {
+                return "(error)";
+              }
+            })()}
+          </span>
+        </Show>
       </A>
       <form
         class={styles.SearchBar}

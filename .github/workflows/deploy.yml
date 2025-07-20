@@ -38,8 +38,6 @@ jobs:
           region = auto
           endpoint = $ENDPOINT
           EOF
-      - name: Download data
-        run: ./download-data.sh
       - name: Install dependencies
         run: bun install
       - name: Generate assets

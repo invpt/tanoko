@@ -94,105 +94,25 @@ export function segmentReading(
 ): { kanji: string; reading: string }[] {
   const segments: { kanji: string; reading: string }[] = [];
 
-  const isKana = (char: string) => {
-    if (!char) return false;
-    const code = char.charCodeAt(0);
-    return (
-      (code >= 0x3040 && code <= 0x309f) || (code >= 0x30a0 && code <= 0x30ff)
-    );
-  };
+  let current = { kanji: "", reading: "" };
 
-  let currentKanji = kanji;
-  let currentReading = reading;
-
-  let commonPrefixK = "";
-  let commonPrefixR = "";
-  while (
-    currentKanji.length > 0 &&
-    currentReading.length > 0 &&
-    currentKanji[0] === currentReading[0]
-  ) {
-    commonPrefixK += currentKanji[0];
-    commonPrefixR += currentReading[0];
-    currentKanji = currentKanji.substring(1);
-    currentReading = currentReading.substring(1);
-  }
-  if (commonPrefixK.length > 0) {
-    segments.push({
-      kanji: commonPrefixK,
-      reading:
-        commonPrefixK === commonPrefixR && isKana(commonPrefixK[0])
-          ? ""
-          : commonPrefixR,
-    });
-  }
-
-  while (currentKanji.length > 0) {
-    let kanjiChunk = "";
-    let kanaInKanji = "";
-    let i = 0;
-    while (i < currentKanji.length && !isKana(currentKanji[i])) {
-      kanjiChunk += currentKanji[i];
-      i++;
-    }
-
-    currentKanji = currentKanji.substring(i);
-
-    if (kanjiChunk.length > 0) {
-      if (currentKanji.length === 0) {
-        segments.push({ kanji: kanjiChunk, reading: currentReading });
-        currentReading = "";
-        break;
-      }
-
-      let j = 0;
-      while (j < currentKanji.length && isKana(currentKanji[j])) {
-        kanaInKanji += currentKanji[j];
-        j++;
-      }
-      currentKanji = currentKanji.substring(j);
-
-      const splitIndex = currentReading.indexOf(kanaInKanji);
-
-      if (splitIndex !== -1) {
-        segments.push({
-          kanji: kanjiChunk,
-          reading: currentReading.substring(0, splitIndex),
-        });
-        segments.push({ kanji: kanaInKanji, reading: "" });
-        currentReading = currentReading.substring(
-          splitIndex + kanaInKanji.length,
-        );
-      } else {
-        segments.push({
-          kanji: kanjiChunk + kanaInKanji,
-          reading: currentReading,
-        });
-        currentReading = "";
-        break;
-      }
+  for (const char of kanji) {
+    const r = reading.lastIndexOf(char);
+    if (r >= 0) {
+      current.reading = reading.substring(0, r);
+      segments.push(current);
+      segments.push({ kanji: char, reading: "" });
+      reading = reading.substring(r + char.length);
+      current = { kanji: "", reading: "" };
     } else {
-      segments.push({
-        kanji: currentKanji,
-        reading:
-          currentKanji === currentReading && isKana(currentKanji[0])
-            ? ""
-            : currentReading,
-      });
-      currentKanji = "";
-      currentReading = "";
-      break;
+      current.kanji += char;
     }
   }
 
-  if (currentKanji.length > 0 || currentReading.length > 0) {
-    segments.push({
-      kanji: currentKanji,
-      reading:
-        currentKanji === currentReading && isKana(currentKanji[0])
-          ? ""
-          : currentReading,
-    });
+  current.reading = reading;
+
+  if (current.kanji.length > 0 || current.reading.length > 0) {
+    segments.push(current);
   }
 
   return segments;

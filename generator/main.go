@@ -235,10 +235,11 @@ func writeJmdictMeta(jm jmdict.JMdict, outputDir string) error {
 }
 
 type IndexItem struct {
-	ID       string
-	Text     string
-	Common   bool
-	Priority float64
+	ID        string
+	Text      string
+	Common    bool
+	Priority  float64
+	KanaCount int
 }
 
 func buildJmdictEnglishIndex(jm jmdict.JMdict) []IndexItem {
@@ -329,9 +330,10 @@ func getSortKey(item IndexItem, c, l, p float64) float64 {
 
 func buildJmdictNativeIndex(jm jmdict.JMdict) []IndexItem {
 	const (
-		c = 10.0 // common weight
-		l = 2.0  // length weight
-		p = 1.0  // priority weight
+		c = 10.0  // common weight
+		l = 2.0   // length weight
+		p = 1.0   // priority weight
+		k = 0.001 // kana weight
 	)
 
 	var index []IndexItem
@@ -347,19 +349,21 @@ func buildJmdictNativeIndex(jm jmdict.JMdict) []IndexItem {
 	for _, word := range jm.Words {
 		for _, kanji := range word.Kanji {
 			add(IndexItem{
-				ID:       word.ID,
-				Text:     kanji.Text,
-				Common:   kanji.Common,
-				Priority: 0,
+				ID:        word.ID,
+				Text:      kanji.Text,
+				Common:    kanji.Common,
+				Priority:  0,
+				KanaCount: countKana(kanji.Text),
 			})
 		}
 
 		for _, kana := range word.Kana {
 			add(IndexItem{
-				ID:       word.ID,
-				Text:     kana.Text,
-				Common:   kana.Common,
-				Priority: 0,
+				ID:        word.ID,
+				Text:      kana.Text,
+				Common:    kana.Common,
+				Priority:  0,
+				KanaCount: 0,
 			})
 		}
 
@@ -369,8 +373,8 @@ func buildJmdictNativeIndex(jm jmdict.JMdict) []IndexItem {
 	sort.Slice(index, func(i, j int) bool {
 		a, b := index[i], index[j]
 
-		sortKeyA := getSortKey(a, c, l, p)
-		sortKeyB := getSortKey(b, c, l, p)
+		sortKeyA := getJmdictNativeSortKey(a, c, l, p, k)
+		sortKeyB := getJmdictNativeSortKey(b, c, l, p, k)
 
 		if sortKeyA == sortKeyB {
 			idA, _ := strconv.Atoi(a.ID)
@@ -382,6 +386,18 @@ func buildJmdictNativeIndex(jm jmdict.JMdict) []IndexItem {
 	})
 
 	return index
+}
+
+func getJmdictNativeSortKey(item IndexItem, c, l, p, k float64) float64 {
+	uncommon := 0.0
+	if !item.Common {
+		uncommon = 1.0
+	}
+	length := float64(len(item.Text))
+	priority := item.Priority
+	kanaCount := float64(item.KanaCount)
+
+	return c*uncommon + l*length + p*priority - k*kanaCount
 }
 
 func writeJmdictEnglishIndex(index []IndexItem, outputDir string) error {
@@ -441,13 +457,13 @@ func writeCedictWords(ce cedict.CEDICT, outputDir string) error {
 	}
 	defer file.Close()
 
-	for i, entry := range ce {
+	for _, entry := range ce {
 		data, err := json.Marshal(entry)
 		if err != nil {
 			return err
 		}
 
-		if _, err := file.WriteString(strconv.Itoa(i)); err != nil {
+		if _, err := file.WriteString(entry.Traditional); err != nil {
 			return err
 		}
 		if _, err := file.WriteString(unitSeparator); err != nil {
@@ -475,8 +491,8 @@ func buildCedictEnglishIndex(ce cedict.CEDICT) []IndexItem {
 		}
 	}
 
-	for i, entry := range ce {
-		id := strconv.Itoa(i)
+	for _, entry := range ce {
+		id := entry.Traditional
 
 		for senseIdx, sense := range entry.Senses {
 			for glossIdx, gloss := range sense {
@@ -525,8 +541,8 @@ func buildCedictNativeIndex(ce cedict.CEDICT) []IndexItem {
 		}
 	}
 
-	for i, entry := range ce {
-		id := strconv.Itoa(i)
+	for _, entry := range ce {
+		id := entry.Traditional
 
 		add(IndexItem{
 			ID:       id,
@@ -633,4 +649,14 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func countKana(s string) int {
+	count := 0
+	for _, r := range s {
+		if unicode.Is(unicode.Hiragana, r) || unicode.Is(unicode.Katakana, r) {
+			count++
+		}
+	}
+	return count
 }

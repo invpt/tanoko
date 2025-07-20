@@ -10,14 +10,14 @@ import styles from "./Search.module.css";
 import { useLocation } from "@solidjs/router";
 import { useSrs } from "./srs/srs";
 import { dict, useDictStatus, DictionaryEntry } from "./dict/dict";
-import { toHiragana } from "wanakana";
 
 import {
   determineQueryType,
   suggestQueryType,
   QueryType,
 } from "./QueryDetection";
-import SearchResultDisplay from "./SearchResultDisplay";
+import { toHiragana } from "wanakana";
+import Word from "./Word";
 
 const Search: Component = () => {
   const [selectedDict, setSelectedDict] = createSignal<"japanese" | "chinese">(
@@ -129,8 +129,6 @@ const Search: Component = () => {
 
   return (
     <div class={styles.Search}>
-      {/* Language selection is now in Header, removed from here */}
-
       <Show when={!query() || query()?.trim() === ""}>
         <div class={styles.EmptyState}>
           <p>Enter a search term to find words</p>
@@ -138,16 +136,63 @@ const Search: Component = () => {
       </Show>
 
       <Show when={query() && query()?.trim() !== ""}>
-        <SearchResultDisplay
-          query={query()}
-          results={results()}
-          dictStatus={dictStatus}
-          currentQueryType={currentQueryType()}
-          showRomajiWarning={showRomajiWarning()}
-          selectedDict={selectedDict()}
-          handleSwitchToEnglish={handleSwitchToEnglish}
-          handleWordClick={handleWordClick}
-        />
+        <Show when={dictStatus().status === "loading"}>
+          <div class={styles.LoadingState}>
+            <p>Dictionary is still loading... Search will be available soon.</p>
+          </div>
+        </Show>
+
+        <Show when={dictStatus().status === "failure"}>
+          <div class={styles.ErrorState}>
+            <p>Dictionary failed to load. Search is not available.</p>
+          </div>
+        </Show>
+
+        <Show when={dictStatus().status === "ready"}>
+          <div class={styles.QueryInfoMessage}>
+            <Show
+              when={
+                currentQueryType() === "japanese-native" && !showRomajiWarning()
+              }
+            >
+              <p>Searching in Japanese (native).</p>
+            </Show>
+            <Show
+              when={
+                currentQueryType() === "japanese-english" &&
+                !showRomajiWarning()
+              }
+            >
+              <p>Searching in Japanese (English).</p>
+            </Show>
+            <Show when={currentQueryType() === "chinese-native"}>
+              <p>Searching in Chinese (Pinyin/Characters).</p>
+            </Show>
+            <Show when={currentQueryType() === "chinese-english"}>
+              <p>Searching in Chinese (English).</p>
+            </Show>
+            <Show when={showRomajiWarning() && selectedDict() === "japanese"}>
+              <p>
+                Romaji detected! Searching for "{toHiragana(query()!)}"
+                (Hiragana).
+                <button onClick={handleSwitchToEnglish}>
+                  Search for "{query()!}" (English) instead
+                </button>
+              </p>
+            </Show>
+          </div>
+          <Show when={results() && results()!.length === 0}>
+            <div class={styles.EmptyState}>
+              <p>No results found for "{query()}"</p>
+            </div>
+          </Show>
+
+          <Show when={results() && results()!.length > 0}>
+            {results()!.map((word) => (
+              <Word word={word} onClick={() => handleWordClick(word)} />
+            ))}
+          </Show>
+        </Show>
       </Show>
     </div>
   );

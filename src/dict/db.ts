@@ -9,6 +9,10 @@ export type DictDbSchema = {
     key: string;
     value: string;
   };
+  cedict: {
+    key: string;
+    value: string;
+  };
   meta: {
     key: string;
     value: string;
@@ -28,6 +32,10 @@ export async function openDictDb() {
 
       if (!db.objectStoreNames.contains("meta")) {
         db.createObjectStore("meta");
+      }
+
+      if (!db.objectStoreNames.contains("cedict")) {
+        db.createObjectStore("cedict");
       }
     },
   });

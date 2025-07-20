@@ -2,20 +2,27 @@ import {
   createResource,
   createSignal,
   createEffect,
-  onCleanup, // Import onCleanup
   Show,
   type Component,
 } from "solid-js";
 
 import styles from "./Search.module.css";
-import { JMdictWord } from "@scriptin/jmdict-simplified-types";
 import { useLocation } from "@solidjs/router";
 import { useSrs } from "./srs/srs";
-import Word from "./Word";
-import { dict, useDictStatus, QueryType } from "./dict/dict";
+import { dict, useDictStatus, DictionaryEntry } from "./dict/dict";
 import { toHiragana } from "wanakana";
 
+import {
+  determineQueryType,
+  suggestQueryType,
+  QueryType,
+} from "./QueryDetection";
+import SearchResultDisplay from "./SearchResultDisplay";
+
 const Search: Component = () => {
+  const [selectedDict, setSelectedDict] = createSignal<"japanese" | "chinese">(
+    "japanese",
+  );
   const location = useLocation();
   const { add } = useSrs();
   const dictStatus = useDictStatus();
@@ -28,19 +35,6 @@ const Search: Component = () => {
   >(undefined);
   const [showRomajiWarning, setShowRomajiWarning] = createSignal(false);
 
-  // This is a simple heuristic: if the query contains any Japanese characters,
-  // it's a native query. Otherwise, it's an English query.
-  function detectQueryType(query: string): QueryType {
-    if (
-      /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(
-        query,
-      )
-    ) {
-      return "native";
-    }
-    return "english";
-  }
-
   const [searchParams, setSearchParams] = createSignal<{
     query: string | undefined;
     queryType: QueryType | undefined;
@@ -52,6 +46,11 @@ const Search: Component = () => {
       ? queryParam[0]
       : queryParam;
 
+    const dictParam = location.query["dict"];
+    const currentSelectedDict =
+      dictParam === "chinese" ? "chinese" : "japanese";
+    setSelectedDict(currentSelectedDict);
+
     if (!originalQuery || originalQuery.trim() === "") {
       setSearchParams({ query: undefined, queryType: undefined });
       setCurrentQueryType(undefined);
@@ -60,36 +59,20 @@ const Search: Component = () => {
       return;
     }
 
-    const initialQueryType = detectQueryType(originalQuery);
-    let queryToSend = originalQuery;
-    let actualQueryType = initialQueryType;
-    let shouldShowWarning = false;
+    const { queryToSend, actualQueryType, shouldShowRomajiWarning } =
+      determineQueryType(originalQuery, currentSelectedDict);
 
-    if (initialQueryType === "english") {
-      const isPureRomajiCandidate = /^[a-z]+$/.test(
-        originalQuery.toLowerCase(),
-      );
+    const queryTypeParam = location.query["queryType"];
+    const finalQueryType: QueryType =
+      (queryTypeParam as QueryType) || actualQueryType;
 
-      if (isPureRomajiCandidate) {
-        const convertedQuery = toHiragana(originalQuery);
+    const suggested = suggestQueryType(originalQuery, currentSelectedDict);
 
-        if (
-          convertedQuery !== originalQuery &&
-          detectQueryType(convertedQuery) === "native" &&
-          !/[a-zA-Z]/.test(convertedQuery)
-        ) {
-          queryToSend = convertedQuery;
-          actualQueryType = "native";
-          shouldShowWarning = true;
-        }
-      }
-    }
+    setCurrentQueryType(finalQueryType);
+    setSuggestedQueryType(suggested);
+    setShowRomajiWarning(shouldShowRomajiWarning);
 
-    setCurrentQueryType(actualQueryType);
-    setSuggestedQueryType(initialQueryType);
-    setShowRomajiWarning(shouldShowWarning);
-
-    setSearchParams({ query: queryToSend, queryType: actualQueryType });
+    setSearchParams({ query: queryToSend, queryType: finalQueryType });
   });
 
   const [results] = createResource(searchParams, async (params) => {
@@ -97,7 +80,7 @@ const Search: Component = () => {
       return [];
     }
 
-    const results: JMdictWord[] = [];
+    const results: DictionaryEntry[] = [];
     for await (const result of await dict.search(
       params.query,
       params.queryType,
@@ -112,15 +95,28 @@ const Search: Component = () => {
 
   const handleSwitchToEnglish = () => {
     const originalQuery = query();
-    if (originalQuery) {
-      setSearchParams({ query: originalQuery, queryType: "english" });
+    if (originalQuery && selectedDict() === "japanese") {
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set("queryType", "japanese-english");
       setShowRomajiWarning(false);
+      window.history.replaceState({}, "", currentUrl.toString());
     }
   };
 
-  const handleWordClick = async (word: JMdictWord) => {
+  const handleWordClick = async (word: DictionaryEntry) => {
     try {
-      await add("jmdict-vocab", word.id);
+      if ("id" in word) {
+        await add("jmdict-vocab", word.id);
+      } else if (
+        "simplified" in word &&
+        "traditional" in word &&
+        "pinyin" in word
+      ) {
+        const cedictId = `${word.traditional}::${word.simplified}::${word.pinyin.join(";")}`;
+        await add("cedict-vocab", cedictId);
+      } else {
+        console.warn("Attempted to add an unknown word type to SRS:", word);
+      }
     } catch (error) {
       console.error("Failed to add word to SRS:", error);
     }
@@ -133,6 +129,8 @@ const Search: Component = () => {
 
   return (
     <div class={styles.Search}>
+      {/* Language selection is now in Header, removed from here */}
+
       <Show when={!query() || query()?.trim() === ""}>
         <div class={styles.EmptyState}>
           <p>Enter a search term to find words</p>
@@ -140,52 +138,16 @@ const Search: Component = () => {
       </Show>
 
       <Show when={query() && query()?.trim() !== ""}>
-        <Show when={dictStatus().status === "loading"}>
-          <div class={styles.LoadingState}>
-            <p>Dictionary is still loading... Search will be available soon.</p>
-          </div>
-        </Show>
-
-        <Show when={dictStatus().status === "failure"}>
-          <div class={styles.ErrorState}>
-            <p>Dictionary failed to load. Search is not available.</p>
-          </div>
-        </Show>
-
-        <Show when={dictStatus().status === "ready"}>
-          <div class={styles.QueryInfoMessage}>
-            <Show
-              when={currentQueryType() === "native" && !showRomajiWarning()}
-            >
-              <p>Searching in Japanese (native).</p>
-            </Show>
-            <Show
-              when={currentQueryType() === "english" && !showRomajiWarning()}
-            >
-              <p>Searching in English.</p>
-            </Show>
-            <Show when={showRomajiWarning()}>
-              <p>
-                Romaji detected! Searching for "{toHiragana(query()!)}"
-                (Hiragana).
-                <button onClick={handleSwitchToEnglish}>
-                  Search for "{query()!}" (English) instead
-                </button>
-              </p>
-            </Show>
-          </div>
-          <Show when={results() && results()!.length === 0}>
-            <div class={styles.EmptyState}>
-              <p>No results found for \"{query()}\"</p>
-            </div>
-          </Show>
-
-          <Show when={results() && results()!.length > 0}>
-            {results()?.map((word) => (
-              <Word word={word} onClick={() => handleWordClick(word)} />
-            ))}
-          </Show>
-        </Show>
+        <SearchResultDisplay
+          query={query()}
+          results={results()}
+          dictStatus={dictStatus}
+          currentQueryType={currentQueryType()}
+          showRomajiWarning={showRomajiWarning()}
+          selectedDict={selectedDict()}
+          handleSwitchToEnglish={handleSwitchToEnglish}
+          handleWordClick={handleWordClick}
+        />
       </Show>
     </div>
   );

@@ -30,7 +30,6 @@ type githubReleaseAsset struct {
 var client = &http.Client{Timeout: 10 * time.Second}
 
 func fetchJMdict() (jm jmdict.JMdict, kj jmdict.Kanjidic2, err error) {
-	// Check cache first
 	if isCached("jmdict.json") && isCached("kanjidic2.json") {
 		fmt.Println("Using cached JMdict data")
 
@@ -140,7 +139,6 @@ func fetchJsonFromTarGzAndCache(url, cacheFilename string, target any) error {
 		}
 
 		if strings.HasSuffix(header.Name, ".json") {
-			// Read the JSON data
 			var buf strings.Builder
 			if _, err := io.Copy(&buf, tr); err != nil {
 				return err
@@ -148,12 +146,10 @@ func fetchJsonFromTarGzAndCache(url, cacheFilename string, target any) error {
 
 			jsonData := buf.String()
 
-			// Decode the JSON
 			if err := json.NewDecoder(strings.NewReader(jsonData)).Decode(target); err != nil {
 				return err
 			}
 
-			// Cache the JSON data
 			if err := saveToCache(cacheFilename, strings.NewReader(jsonData)); err != nil {
 				fmt.Printf("Warning: failed to cache %s: %v\n", cacheFilename, err)
 			}
@@ -166,7 +162,6 @@ func fetchJsonFromTarGzAndCache(url, cacheFilename string, target any) error {
 }
 
 func fetchCEDICT() (ce cedict.CEDICT, err error) {
-	// Check cache first
 	if isCached("cedict.txt.gz") {
 		fmt.Println("Using cached CEDICT data")
 
@@ -193,7 +188,6 @@ func fetchCEDICT() (ce cedict.CEDICT, err error) {
 	}
 	defer resp.Body.Close()
 
-	// Save to cache and parse at the same time
 	var buf strings.Builder
 	teeReader := io.TeeReader(resp.Body, &buf)
 
@@ -208,7 +202,6 @@ func fetchCEDICT() (ce cedict.CEDICT, err error) {
 		return
 	}
 
-	// Cache the downloaded data
 	if err := saveToCache("cedict.txt.gz", strings.NewReader(buf.String())); err != nil {
 		fmt.Printf("Warning: failed to cache CEDICT: %v\n", err)
 	}

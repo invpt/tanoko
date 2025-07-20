@@ -103,7 +103,6 @@ header {
     all: unset;
     padding: 0.5em;
     flex: 1;
-    width: 0;
 }
 
 .SearchButton {
@@ -120,4 +119,43 @@ header {
 
 .SearchButton:hover {
     background-color: rgb(245, 245, 245);
+}
+
+.SearchInputContainer {
+    display: flex;
+    flex: 1; /* Allow it to grow */
+    align-items: center; /* Vertically align items */
+}
+
+.DictSelectionInline {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Spacing between radio buttons and button */
+    padding-right: 0.5em; /* Padding inside the search bar on the right side of selections */
+    white-space: nowrap; /* Prevent wrapping of language options */
+}
+
+.RadioLabel {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8em;
+    color: rgb(78, 78, 78);
+    cursor: pointer; /* Indicate it's clickable */
+}
+
+.SwitchToEnglishButton {
+    all: unset; /* Remove default button styles */
+    cursor: pointer;
+    font-size: 0.8em;
+    color: #007bff; /* A standard blue for links/buttons */
+    text-decoration: underline;
+    background: none;
+    border: none;
+    padding: 0;
+    margin-left: 8px; /* Space from radio buttons */
+}
+
+.SwitchToEnglishButton:hover {
+    color: #0056b3; /* Darker blue on hover */
 }

@@ -1,6 +1,7 @@
 import { DictDbSchema, openDictDb } from "./db";
 import jmdictWordsUrl from "../assets/gen/jmdict-words.dsv?url";
 import kanjidicKanjiUrl from "../assets/gen/kanjidic-kanji.dsv?url";
+import cedictWordsUrl from "../assets/gen/cedict-words.dsv?url";
 import { IDBPDatabase } from "idb";
 
 (async () => {
@@ -19,8 +20,10 @@ async function runImport(progressCallback?: (bytesDownloaded: number) => void) {
 
   let jmdictBytes = 0;
   let kanjidicBytes = 0;
+  let cedictBytes = 0;
 
-  const reportProgress = () => progressCallback?.(jmdictBytes + kanjidicBytes);
+  const reportProgress = () =>
+    progressCallback?.(jmdictBytes + kanjidicBytes + cedictBytes);
 
   await Promise.all([
     importDsv(db, "jmdict", jmdictWordsUrl, (bytes) => {
@@ -31,12 +34,16 @@ async function runImport(progressCallback?: (bytesDownloaded: number) => void) {
       kanjidicBytes = bytes;
       reportProgress();
     }),
+    importDsv(db, "cedict", cedictWordsUrl, (bytes) => {
+      cedictBytes = bytes;
+      reportProgress();
+    }),
   ]);
 }
 
 async function importDsv(
   db: IDBPDatabase<DictDbSchema>,
-  storeName: "jmdict" | "kanjidic",
+  storeName: "jmdict" | "kanjidic" | "cedict",
   src: string,
   progressCallback: (downloaded: number) => void,
 ): Promise<void> {
@@ -77,7 +84,6 @@ async function importDsv(
     }
   }
 
-  // Process remaining records in batch
   await processBatch(batch);
 
   await db.put("meta", src, storeName);

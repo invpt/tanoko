@@ -2,14 +2,17 @@ import {
   JMdictWord,
   Kanjidic2Character,
 } from "@scriptin/jmdict-simplified-types";
-import ImportWorker from "./db-import-worker?worker";
-import { createEffect, createSignal, onCleanup } from "solid-js";
-import { IDBPDatabase } from "idb";
-import { DictDbSchema, openDictDb } from "./db";
-import jmdictIndexUrl from "../assets/gen/jmdict-index-english.dsv?url";
-import jmdictIndexNativeUrl from "../assets/gen/jmdict-index-native.dsv?url";
+import { CedictWord } from "./types";
 
-export type QueryType = "english" | "native";
+export type { JMdictWord, Kanjidic2Character, CedictWord };
+
+export type QueryType =
+  | "japanese-english"
+  | "japanese-native"
+  | "chinese-english"
+  | "chinese-pinyin";
+
+export type DictionaryEntry = JMdictWord | CedictWord;
 
 type ImportStatus =
   | {
@@ -37,6 +40,16 @@ type DictStatus =
       status: "ready";
     };
 
+import ImportWorker from "./db-import-worker?worker";
+import { createEffect, createSignal, onCleanup } from "solid-js";
+import { IDBPDatabase } from "idb";
+import { DictDbSchema, openDictDb } from "./db";
+
+import jmdictIndexUrl from "../assets/gen/jmdict-index-english.dsv?url";
+import jmdictIndexNativeUrl from "../assets/gen/jmdict-index-native.dsv?url";
+import cedictIndexEnglishUrl from "../assets/gen/cedict-index-english.dsv?url";
+import cedictIndexPinyinUrl from "../assets/gen/cedict-index-native.dsv?url";
+
 let status: DictStatus = { status: "loading", bytes: 0 };
 
 const statusListeners: ((status: DictStatus) => void)[] = [];
@@ -63,19 +76,18 @@ const load = () => {
 };
 
 export function useDictStatus() {
-  const [status, setStatus] = createSignal(dict.status);
+  const [currentStatus, setStatus] = createSignal(dict.status);
   createEffect(() => {
     statusListeners.push(setStatus);
     onCleanup(() =>
       statusListeners.splice(statusListeners.indexOf(setStatus), 1),
     );
   });
-  return status;
+  return currentStatus;
 }
 
 export const dict = {
   get status() {
-    // trigger loading if it has not already started
     load();
     return status;
   },
@@ -95,11 +107,20 @@ export const dict = {
 
 class Dict {
   private db: IDBPDatabase<DictDbSchema>;
-  private wordIndex: Index;
-  private nativeWordIndex: Index;
+  private jmdictEnglishIndex: Index;
+  private jmdictNativeIndex: Index;
+  private cedictEnglishIndex: Index;
+  private cedictPinyinIndex: Index;
 
   static async load(progress: (bytes: number) => void) {
-    const [, db, wordIndex, nativeWordIndex] = await Promise.all([
+    const [
+      ,
+      db,
+      jmdictEnglishIndex,
+      jmdictNativeIndex,
+      cedictEnglishIndex,
+      cedictPinyinIndex,
+    ] = await Promise.all([
       new Promise((resolve, reject) => {
         const importWorker = new ImportWorker();
         importWorker.onmessage = (msg) => {
@@ -123,27 +144,72 @@ class Dict {
       openDictDb(),
       Index.load(jmdictIndexUrl),
       Index.load(jmdictIndexNativeUrl),
+      Index.load(cedictIndexEnglishUrl),
+      Index.load(cedictIndexPinyinUrl),
     ]);
-    return new Dict(db, wordIndex, nativeWordIndex);
+    return new Dict(
+      db,
+      jmdictEnglishIndex,
+      jmdictNativeIndex,
+      cedictEnglishIndex,
+      cedictPinyinIndex,
+    );
   }
 
   private constructor(
     db: IDBPDatabase<DictDbSchema>,
-    wordIndex: Index,
-    nativeWordIndex: Index,
+    jmdictEnglishIndex: Index,
+    jmdictNativeIndex: Index,
+    cedictEnglishIndex: Index,
+    cedictPinyinIndex: Index,
   ) {
     this.db = db;
-    this.wordIndex = wordIndex;
-    this.nativeWordIndex = nativeWordIndex;
+    this.jmdictEnglishIndex = jmdictEnglishIndex;
+    this.jmdictNativeIndex = jmdictNativeIndex;
+    this.cedictEnglishIndex = cedictEnglishIndex;
+    this.cedictPinyinIndex = cedictPinyinIndex;
   }
 
-  async *search(query: string, queryType: QueryType) {
-    const index =
-      queryType === "native" ? this.nativeWordIndex : this.wordIndex;
+  async *search(
+    query: string,
+    queryType: QueryType,
+  ): AsyncGenerator<DictionaryEntry> {
+    let index: Index;
+    let storeName: "jmdict" | "cedict";
+
+    switch (queryType) {
+      case "japanese-english":
+        index = this.jmdictEnglishIndex;
+        storeName = "jmdict";
+        break;
+      case "japanese-native":
+        index = this.jmdictNativeIndex;
+        storeName = "jmdict";
+        break;
+      case "chinese-english":
+        index = this.cedictEnglishIndex;
+        storeName = "cedict";
+        break;
+      case "chinese-pinyin":
+        index = this.cedictPinyinIndex;
+        storeName = "cedict";
+        break;
+      default:
+        throw new Error(`Unknown query type: ${queryType}`);
+    }
+
     for (const resultId of index.search(query)) {
-      const result = await this.loadWord(resultId);
+      let result: DictionaryEntry | undefined;
+      if (storeName === "jmdict") {
+        result = await this.loadJmdictWord(resultId);
+      } else {
+        result = await this.loadCedictWord(resultId);
+      }
+
       if (result === undefined) {
-        console.warn("Ignoring word search result with no dictionary entry");
+        console.warn(
+          "Ignoring dictionary search result with no corresponding entry",
+        );
         continue;
       } else {
         yield result;
@@ -151,13 +217,30 @@ class Dict {
     }
   }
 
-  async loadWord(id: string): Promise<JMdictWord | undefined> {
+  async loadJmdictWord(id: string): Promise<JMdictWord | undefined> {
     const word = await this.db.get("jmdict", id);
     if (word !== undefined) {
       return JSON.parse(word);
     } else {
       return undefined;
     }
+  }
+
+  async loadCedictWord(id: string): Promise<CedictWord | undefined> {
+    const word = await this.db.get("cedict", id);
+    if (word !== undefined) {
+      return JSON.parse(word);
+    } else {
+      return undefined;
+    }
+  }
+
+  async loadWord(id: string): Promise<DictionaryEntry | undefined> {
+    let word: DictionaryEntry | undefined = await this.loadJmdictWord(id);
+    if (word === undefined) {
+      word = await this.loadCedictWord(id);
+    }
+    return word;
   }
 
   async loadKanji(literal: string): Promise<Kanjidic2Character | undefined> {
@@ -201,7 +284,6 @@ class Index {
         }
 
         if (record < unit) {
-          // the search matched an ID, not text!
           start = record + 1;
           continue;
         }

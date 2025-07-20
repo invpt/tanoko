@@ -21,7 +21,6 @@ const (
 )
 
 func main() {
-	// Define command-line flags
 	var (
 		clearCacheFlag = flag.Bool("clear-cache", false, "Clear the download cache before running")
 		helpFlag       = flag.Bool("help", false, "Show help message")
@@ -42,7 +41,6 @@ func main() {
 		}
 	}
 
-	// Create output directory
 	outputDir := filepath.Join("..", "src", "assets", "gen")
 	if err := os.MkdirAll(outputDir, 0755); err != nil && !os.IsExist(err) {
 		panic(err)
@@ -50,7 +48,6 @@ func main() {
 
 	fmt.Println("Fetching dictionary data...")
 
-	// Fetch data
 	ce, err := fetchCEDICT()
 	if err != nil {
 		panic(err)
@@ -63,12 +60,10 @@ func main() {
 
 	fmt.Println("Generating files...")
 
-	// Generate Japanese files
 	if err := generateJapanese(jm, kj, outputDir); err != nil {
 		panic(err)
 	}
 
-	// Generate Chinese files
 	if err := generateChinese(ce, outputDir); err != nil {
 		panic(err)
 	}
@@ -77,7 +72,6 @@ func main() {
 }
 
 func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) error {
-	// Generate Kanjidic files
 	if err := writeKanjidicKanji(kj, outputDir); err != nil {
 		return fmt.Errorf("failed to write kanjidic kanji: %w", err)
 	}
@@ -86,7 +80,6 @@ func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) e
 		return fmt.Errorf("failed to write kanjidic meta: %w", err)
 	}
 
-	// Generate JMdict files
 	if err := writeJmdictWords(jm, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict words: %w", err)
 	}
@@ -95,7 +88,6 @@ func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) e
 		return fmt.Errorf("failed to write jmdict meta: %w", err)
 	}
 
-	// Generate indexes
 	englishIndex := buildJmdictEnglishIndex(jm)
 	if err := writeJmdictEnglishIndex(englishIndex, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict english index: %w", err)
@@ -250,7 +242,6 @@ type IndexItem struct {
 }
 
 func buildJmdictEnglishIndex(jm jmdict.JMdict) []IndexItem {
-	// Parameters for ordering items in the index
 	const (
 		c = 10.0 // common weight
 		l = 2.0  // length weight
@@ -268,12 +259,10 @@ func buildJmdictEnglishIndex(jm jmdict.JMdict) []IndexItem {
 	}
 
 	for _, word := range jm.Words {
-		// Add gloss entries
 		for senseIdx, sense := range word.Sense {
 			allKanji := len(sense.AppliesToKanji) == 1 && sense.AppliesToKanji[0] == "*"
 			allKana := len(sense.AppliesToKana) == 1 && sense.AppliesToKana[0] == "*"
 
-			// Check if any applicable kanji/kana are common
 			commonKanji := false
 			for _, kanji := range word.Kanji {
 				if allKanji || contains(sense.AppliesToKanji, kanji.Text) {
@@ -306,11 +295,9 @@ func buildJmdictEnglishIndex(jm jmdict.JMdict) []IndexItem {
 			}
 		}
 
-		// Clear for next word
 		alreadyAdded = make(map[string]bool)
 	}
 
-	// Sort index
 	sort.Slice(index, func(i, j int) bool {
 		a, b := index[i], index[j]
 
@@ -341,7 +328,6 @@ func getSortKey(item IndexItem, c, l, p float64) float64 {
 }
 
 func buildJmdictNativeIndex(jm jmdict.JMdict) []IndexItem {
-	// Parameters for ordering items in the index
 	const (
 		c = 10.0 // common weight
 		l = 2.0  // length weight
@@ -359,7 +345,6 @@ func buildJmdictNativeIndex(jm jmdict.JMdict) []IndexItem {
 	}
 
 	for _, word := range jm.Words {
-		// Add kanji entries
 		for _, kanji := range word.Kanji {
 			add(IndexItem{
 				ID:       word.ID,
@@ -369,7 +354,6 @@ func buildJmdictNativeIndex(jm jmdict.JMdict) []IndexItem {
 			})
 		}
 
-		// Add kana entries
 		for _, kana := range word.Kana {
 			add(IndexItem{
 				ID:       word.ID,
@@ -379,11 +363,9 @@ func buildJmdictNativeIndex(jm jmdict.JMdict) []IndexItem {
 			})
 		}
 
-		// Clear for next word
 		alreadyAdded = make(map[string]bool)
 	}
 
-	// Sort index
 	sort.Slice(index, func(i, j int) bool {
 		a, b := index[i], index[j]
 
@@ -496,7 +478,6 @@ func buildCedictEnglishIndex(ce cedict.CEDICT) []IndexItem {
 	for i, entry := range ce {
 		id := strconv.Itoa(i)
 
-		// Add glosses
 		for senseIdx, sense := range entry.Senses {
 			for glossIdx, gloss := range sense {
 				if strings.TrimSpace(gloss) != "" {
@@ -512,11 +493,9 @@ func buildCedictEnglishIndex(ce cedict.CEDICT) []IndexItem {
 			}
 		}
 
-		// Clear for next entry
 		alreadyAdded = make(map[string]bool)
 	}
 
-	// Sort index by text length first, then priority
 	sort.Slice(index, func(i, j int) bool {
 		a, b := index[i], index[j]
 
@@ -549,7 +528,6 @@ func buildCedictNativeIndex(ce cedict.CEDICT) []IndexItem {
 	for i, entry := range ce {
 		id := strconv.Itoa(i)
 
-		// Add traditional character
 		add(IndexItem{
 			ID:       id,
 			Text:     entry.Traditional,
@@ -557,7 +535,6 @@ func buildCedictNativeIndex(ce cedict.CEDICT) []IndexItem {
 			Priority: 0,
 		})
 
-		// Add simplified character (if different)
 		if entry.Simplified != entry.Traditional {
 			add(IndexItem{
 				ID:       id,
@@ -567,7 +544,6 @@ func buildCedictNativeIndex(ce cedict.CEDICT) []IndexItem {
 			})
 		}
 
-		// Add pinyin
 		for i, pinyin := range processPinyin(entry.Pinyin) {
 			add(IndexItem{
 				ID:       id,
@@ -577,11 +553,9 @@ func buildCedictNativeIndex(ce cedict.CEDICT) []IndexItem {
 			})
 		}
 
-		// Clear for next entry
 		alreadyAdded = make(map[string]bool)
 	}
 
-	// Sort index by text length first, then priority
 	sort.Slice(index, func(i, j int) bool {
 		a, b := index[i], index[j]
 

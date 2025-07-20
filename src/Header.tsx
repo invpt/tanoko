@@ -6,6 +6,7 @@ import {
   createUniqueId,
   JSX,
   onCleanup,
+  onMount,
   Show,
 } from "solid-js";
 
@@ -22,40 +23,78 @@ const Header: Component = () => {
   const [query, setQuery] = createSignal("");
   const [debouncedQuery, setDebouncedQuery] = createSignal("");
 
+  const [selectedDict, setSelectedDict] = createSignal<"japanese" | "chinese">(
+    (localStorage.getItem("selectedDict") as "japanese" | "chinese") ||
+      "japanese",
+  );
+
   const onSearchPage = () => location.pathname === "/search";
 
   const searchId = createUniqueId();
 
-  createEffect(() => {
-    if (onSearchPage()) {
-      const queryParam = location.query.query;
-      const newQuery = Array.isArray(queryParam) ? queryParam[0] : queryParam;
-      setQuery(newQuery);
-      setDebouncedQuery(newQuery); // Initialize debounced query immediately
-    } else {
-      setQuery("");
-      setDebouncedQuery("");
+  onMount(() => {
+    const persistedDict = localStorage.getItem("selectedDict");
+    if (persistedDict === "japanese" || persistedDict === "chinese") {
+      setSelectedDict(persistedDict);
     }
   });
 
-  const debouncedSetDebouncedQuery = debounce(setDebouncedQuery, 250); // 500ms debounce
+  createEffect(() => {
+    localStorage.setItem("selectedDict", selectedDict());
+  });
 
   createEffect(() => {
-    // When the raw query changes, update the debounced query
-    // This effect runs on every keystroke, but debouncedSetDebouncedQuery
-    // will delay the actual update to debouncedQuery.
+    const queryParam = location.query.query;
+    const newQuery = Array.isArray(queryParam) ? queryParam[0] : queryParam;
+
+    const dictParam = location.query.dict;
+    const newSelectedDict = dictParam === "chinese" ? "chinese" : "japanese";
+
+    if (selectedDict() !== newSelectedDict) {
+      setSelectedDict(newSelectedDict);
+    }
+
+    setQuery(newQuery || "");
+    setDebouncedQuery(newQuery || "");
+  });
+
+  const debouncedSetDebouncedQuery = debounce(setDebouncedQuery, 250);
+
+  createEffect(() => {
     if (onSearchPage()) {
       debouncedSetDebouncedQuery(query());
     }
   });
 
   createEffect(() => {
-    // When the debounced query changes, perform the navigation
-    if (onSearchPage() && debouncedQuery() !== location.query.query) {
-      navigate(`/search?query=${encodeURIComponent(debouncedQuery())}`, {
-        replace: true,
-        scroll: false,
-      });
+    if (onSearchPage()) {
+      const currentUrl = new URL(window.location.href);
+      const currentQueryParam = currentUrl.searchParams.get("query") || "";
+      const currentDictParam =
+        currentUrl.searchParams.get("dict") || "japanese";
+
+      const targetQuery = debouncedQuery();
+      const targetDict = selectedDict();
+
+      const newUrlSearchParams = new URLSearchParams();
+      newUrlSearchParams.set("query", targetQuery);
+      newUrlSearchParams.set("dict", targetDict);
+
+      const targetPathname = "/search";
+      const targetSearchParams = newUrlSearchParams.toString();
+      const newUrl = `${targetPathname}${targetSearchParams ? `?${targetSearchParams}` : ""}`;
+
+      // Only navigate if the query or dict parameters have actually changed in a way that affects the URL
+      // This prevents unnecessary navigations and redirect loops
+      if (
+        targetQuery !== currentQueryParam ||
+        targetDict !== currentDictParam
+      ) {
+        navigate(newUrl, {
+          replace: true,
+          scroll: false,
+        });
+      }
     }
   });
 
@@ -79,12 +118,25 @@ const Header: Component = () => {
   > = (ev) => {
     const query = ev.currentTarget.value;
     setQuery(query);
-    // Navigation is now handled by the createEffect watching debouncedQuery
   };
 
   const handleSearch = (ev: Event) => {
     ev.preventDefault();
-    navigate(`/search?query=${encodeURIComponent(query())}`);
+    let url = `/search?query=${encodeURIComponent(query() || "")}`;
+    url += `&dict=${selectedDict()}`;
+    navigate(url);
+  };
+
+  const handleSelectedDictChange: JSX.EventHandlerUnion<
+    HTMLInputElement,
+    Event
+  > = (event) => {
+    const newDict = event.currentTarget.value as "japanese" | "chinese";
+    setSelectedDict(newDict);
+    const currentQ = query();
+    let url = `/search?query=${encodeURIComponent(currentQ || "")}`;
+    url += `&dict=${newDict}`;
+    navigate(url, { replace: true, scroll: false });
   };
 
   return (
@@ -113,14 +165,38 @@ const Header: Component = () => {
         classList={{ [styles.SearchBarOtherPage]: !onSearchPage() }}
         onSubmit={handleSearch}
       >
-        <input
-          class={styles.SearchInput}
-          type="text"
-          onInput={handleSearchInput}
-          value={query()}
-          placeholder="Press / to focus"
-          id={searchId}
-        />
+        <div class={styles.SearchInputContainer}>
+          <input
+            class={styles.SearchInput}
+            type="text"
+            onInput={handleSearchInput}
+            value={query()}
+            placeholder="Press / to focus"
+            id={searchId}
+          />
+          <div class={styles.DictSelectionInline}>
+            <label class={styles.RadioLabel}>
+              <input
+                type="radio"
+                name="dictType"
+                value="japanese"
+                checked={selectedDict() === "japanese"}
+                onChange={handleSelectedDictChange}
+              />
+              Japanese
+            </label>
+            <label class={styles.RadioLabel}>
+              <input
+                type="radio"
+                name="dictType"
+                value="chinese"
+                checked={selectedDict() === "chinese"}
+                onChange={handleSelectedDictChange}
+              />
+              Chinese
+            </label>
+          </div>
+        </div>
         <input type="submit" class={styles.SearchButton} value="Search" />
       </form>
       <div class={styles.Buttons}>

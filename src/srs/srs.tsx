@@ -1,4 +1,3 @@
-import { JMdictWord } from "@scriptin/jmdict-simplified-types";
 import { IDBPDatabase, openDB } from "idb";
 import {
   Component,
@@ -11,7 +10,7 @@ import {
 } from "solid-js";
 import { dict } from "../dict/dict";
 
-export type SrsEntryType = "jmdict-vocab";
+export type SrsEntryType = "jmdict-vocab" | "cedict-vocab";
 
 export type SrsState = {
   [type in SrsEntryType]: {
@@ -20,6 +19,8 @@ export type SrsState = {
     };
   };
 };
+
+import { DictionaryEntry } from "../dict/dict";
 
 export type SrsReviewHistory = {
   time: Date;
@@ -35,7 +36,7 @@ type StateSnapshot = {
   };
 };
 
-export type SrsSnapshot<W = JMdictWord> = {
+export type SrsSnapshot<W = DictionaryEntry> = {
   soonestReview?: Date;
   availableReviews: { type: SrsEntryType; word: W }[];
   state: StateSnapshot;
@@ -145,12 +146,12 @@ export class SrsDb {
 
 async function computeAndFetchSnapshot(
   newState: SrsState,
-): Promise<SrsSnapshot> {
-  const snapshot = computeSnapshot(new Date(), newState);
+): Promise<SrsSnapshot<DictionaryEntry>> {
+  const snapshot: SrsSnapshot<string> = computeSnapshot(new Date(), newState);
 
   const availableReviews: {
     type: SrsEntryType;
-    word: JMdictWord;
+    word: DictionaryEntry;
   }[] = [];
 
   for (const availableReview of snapshot.availableReviews) {
@@ -169,7 +170,7 @@ async function computeAndFetchSnapshot(
     soonestReview: snapshot.soonestReview,
     availableReviews,
     state: snapshot.state,
-  };
+  } as SrsSnapshot<DictionaryEntry>;
 }
 
 function computeSnapshot(now: Date, state: SrsState): SrsSnapshot<string> {
@@ -178,7 +179,9 @@ function computeSnapshot(now: Date, state: SrsState): SrsSnapshot<string> {
     [];
   const stateSnapshot: StateSnapshot = {
     "jmdict-vocab": {},
+    "cedict-vocab": {},
   };
+
   for (const typeString of Object.keys(state)) {
     const type = typeString as SrsEntryType;
     for (const id of Object.keys(state[type])) {

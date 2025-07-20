@@ -2,12 +2,47 @@ import { createResource, createSignal, Show, type Component } from "solid-js";
 import { useSrs } from "./srs/srs";
 
 import styles from "./Review.module.css";
-import { WordSenses, WordTitle } from "./Word";
-import { dict, useDictStatus } from "./dict/dict";
+import {
+  JmdictWordSenses,
+  JmdictWordTitle,
+  CedictWordSenses,
+  CedictWordTitle,
+} from "./Word";
+import {
+  dict,
+  useDictStatus,
+  DictionaryEntry,
+  type JMdictWord,
+  type CedictWord,
+} from "./dict/dict";
 
 const Review: Component = () => {
   const { snapshot, review } = useSrs();
   const dictStatus = useDictStatus();
+
+  const isJmdict = (word: DictionaryEntry): word is JMdictWord => {
+    return "id" in word;
+  };
+
+  const isCedict = (word: DictionaryEntry): word is CedictWord => {
+    return (
+      "simplified" in word &&
+      "traditional" in word &&
+      "pinyin" in word &&
+      "senses" in word
+    );
+  };
+
+  const getSrsId = (word: DictionaryEntry) => {
+    if (isJmdict(word)) {
+      return word.id;
+    } else if (isCedict(word)) {
+      return `${word.traditional}::${word.simplified}::${word.pinyin.join(
+        ";",
+      )}`;
+    }
+    return undefined;
+  };
 
   const firstAvailable = () => {
     const r = snapshot();
@@ -26,20 +61,26 @@ const Review: Component = () => {
   };
 
   const handleCorrectClick = async () => {
-    try {
-      await review(firstAvailable()!.type, firstAvailable()!.word.id, true);
-      setRevealed(false);
-    } catch (error) {
-      console.error("Failed to record correct review:", error);
+    const availableWord = firstAvailable();
+    if (availableWord && getSrsId(availableWord.word)) {
+      try {
+        await review(availableWord.type, getSrsId(availableWord.word)!, true);
+        setRevealed(false);
+      } catch (error) {
+        console.error("Failed to record correct review:", error);
+      }
     }
   };
 
   const handleIncorrectClick = async () => {
-    try {
-      await review(firstAvailable()!.type, firstAvailable()!.word.id, false);
-      setRevealed(false);
-    } catch (error) {
-      console.error("Failed to record incorrect review:", error);
+    const availableWord = firstAvailable();
+    if (availableWord && getSrsId(availableWord.word)) {
+      try {
+        await review(availableWord.type, getSrsId(availableWord.word)!, false);
+        setRevealed(false);
+      } catch (error) {
+        console.error("Failed to record incorrect review:", error);
+      }
     }
   };
 
@@ -100,13 +141,30 @@ const Review: Component = () => {
             classList={{ [styles.Revealed]: revealed() }}
           >
             <div class={styles.ReviewFront}>
-              <WordTitle
-                word={firstAvailable()!.word}
-                showReading={revealed()}
-              />
+              <Show when={isJmdict(firstAvailable()!.word)}>
+                <JmdictWordTitle
+                  word={firstAvailable()!.word as JMdictWord}
+                  showReading={revealed()}
+                />
+              </Show>
+              <Show when={isCedict(firstAvailable()!.word)}>
+                <CedictWordTitle
+                  word={firstAvailable()!.word as CedictWord}
+                  showReading={revealed()}
+                />
+              </Show>
             </div>
             <div class={styles.ReviewBack}>
-              <WordSenses senses={firstAvailable()?.word.sense ?? []} />
+              <Show when={isJmdict(firstAvailable()!.word)}>
+                <JmdictWordSenses
+                  senses={(firstAvailable()!.word as JMdictWord).sense ?? []}
+                />
+              </Show>
+              <Show when={isCedict(firstAvailable()!.word)}>
+                <CedictWordSenses
+                  senses={(firstAvailable()!.word as CedictWord).senses ?? []}
+                />
+              </Show>
             </div>
             <div class={styles.ReviewButtons}>
               <button class={styles.RevealButton} onClick={handleRevealClick}>

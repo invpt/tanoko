@@ -42,8 +42,9 @@ jobs:
         run: bun install
       - name: Generate assets
         run: |
-          go build -o generator/generator_app generator
-          ./generator/generator_app
+          cd generator
+          go build -o generator .
+          ./generator
       - name: Build
         run: bun run build
       - name: Deploy with rclone

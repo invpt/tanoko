@@ -1,47 +1,66 @@
-.Word {
+.word {
     display: flex;
     flex-direction: column;
     align-items: stretch;
 }
 
-.WordHeadline {
+.wordHeadline {
     display: flex;
     flex-direction: row;
     align-items: baseline;
 }
 
-.WordTitle,
-.HeadlineSkewerSizer {
+.wordTitleBase {
     font-size: 1.75em;
-    font-family: "BIZ UDMincho";
 }
 
-.HiddenReading {
+.fontJapanese {
+    font-family: "Noto Serif JP";
+}
+
+.fontTraditionalChinese {
+    font-family: "Noto Serif TC";
+}
+
+.fontSimplifiedChinese {
+    font-family: "Noto Serif SC";
+}
+
+.pinyin {
+    font-family: "Noto Serif";
+    margin-left: 0.25em;
+    font-size: 0.75em;
+    color: #444;
+}
+
+.hiddenReading {
     visibility: hidden;
 }
 
-.HeadlineSkewer {
+.headlineSkewer {
     flex: 1;
     display: flex;
     flex-direction: row;
     align-items: center;
 }
 
-.HeadlineSkewerSizer {
+.headlineSkewerSizer {
     width: 0;
     visibility: hidden;
     user-select: none;
+    font-size: 1.75em;
+    font-family: "Noto Serif JP";
 }
 
-.HeadlineSpacer {
+.headlineSpacer {
     flex: 1;
     height: 2px;
     margin: 0 16px;
     background-color: rgb(230, 230, 230);
 }
 
-.HeadlineBadge,
-button.HeadlineBadge {
+.headlineBadge,
+button.headlineBadge {
     border-radius: 8px;
     font-size: 0.8em;
     background-color: rgb(245, 245, 245);
@@ -49,7 +68,7 @@ button.HeadlineBadge {
     padding: 6px;
 }
 
-button.HeadlineBadge {
+button.headlineBadge {
     border: none;
     cursor: pointer;
     user-select: none;
@@ -58,31 +77,31 @@ button.HeadlineBadge {
         color 0.15s;
 }
 
-button.HeadlineBadge:hover {
+button.headlineBadge:hover {
     background-color: black;
     color: white;
 }
 
-.SensesWrapper {
+.sensesWrapper {
     margin: 12px 24px;
 }
 
-.WordSenses {
+.wordSenses {
     list-style-position: inside;
     margin: unset;
     padding: unset;
 }
 
-.WordPartOfSpeech {
+.wordPartOfSpeech {
     color: gray;
     font-size: 0.75em;
 }
 
-.WordSense {
+.wordSense {
     margin-bottom: 0.5em;
 }
 
-.WordSense::marker {
+.wordSense::marker {
     font-size: 0.75em;
     color: gray;
 }

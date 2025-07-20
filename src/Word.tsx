@@ -3,7 +3,11 @@ import { Component, For, Show } from "solid-js";
 
 import styles from "./Word.module.css";
 import { useSrs } from "./srs/srs";
-import { segmentReading, smartApproximateDuration } from "./util";
+import {
+  segmentReading,
+  smartApproximateDuration,
+  toToneAccents,
+} from "./util";
 import { DictionaryEntry, type CedictWord, type JMdictWord } from "./dict/dict";
 
 const Word: Component<{ word: DictionaryEntry; onClick: () => void }> = (
@@ -71,28 +75,35 @@ const Word: Component<{ word: DictionaryEntry; onClick: () => void }> = (
   };
 
   return (
-    <div class={styles.Word}>
-      <div class={styles.WordHeadline}>
+    <div class={styles.word}>
+      <div class={styles.wordHeadline}>
         <Show when={isJmdict(props.word)}>
           <JmdictWordTitle word={props.word as JMdictWord} />
         </Show>
         <Show when={isCedict(props.word)}>
           <CedictWordTitle word={props.word as CedictWord} />
         </Show>
-        <div class={styles.HeadlineSkewer}>
-          <div class={styles.HeadlineSkewerSizer}>&nbsp;</div>
-          <div class={styles.HeadlineSpacer}></div>
+        <div class={styles.headlineSkewer}>
+          <div
+            classList={{
+              [styles.headlineSkewerSizer]: true,
+              [styles.fontJapanese]: true,
+            }}
+          >
+            &nbsp;
+          </div>
+          <div class={styles.headlineSpacer}></div>
           <Show when={reviewIn()}>
-            <div class={styles.HeadlineBadge}>Review {reviewIn()}</div>
+            <div class={styles.headlineBadge}>Review {reviewIn()}</div>
           </Show>
           <Show when={!reviewIn()}>
-            <button class={styles.HeadlineBadge} onClick={props.onClick}>
+            <button class={styles.headlineBadge} onClick={props.onClick}>
               Add to deck
             </button>
           </Show>
         </div>
       </div>
-      <div class={styles.SensesWrapper}>
+      <div class={styles.sensesWrapper}>
         <Show when={isJmdict(props.word)}>
           <JmdictWordSenses senses={(props.word as JMdictWord).sense} />
         </Show>
@@ -135,12 +146,17 @@ export const JmdictWordTitle: Component<{
 
   return (
     <>
-      <ruby class={styles.WordTitle}>
+      <ruby
+        classList={{
+          [styles.wordTitleBase]: true,
+          [styles.fontJapanese]: true,
+        }}
+      >
         <For each={segments()}>
           {(el) => (
             <>
               {el.kanji}
-              <rt classList={{ [styles.HiddenReading]: !showReading() }}>
+              <rt classList={{ [styles.hiddenReading]: !showReading() }}>
                 {el.reading}
               </rt>
             </>
@@ -155,13 +171,12 @@ export const CedictWordTitle: Component<{
   word: CedictWord;
   showReading?: boolean;
 }> = (props) => {
+  const formattedPinyin = () => props.word.pinyin.map(toToneAccents).join(", ");
+
   return (
-    <div class={styles.WordTitle}>
-      {props.word.traditional} ({props.word.simplified})
-      <span class={styles.PinyinReading}>
-        {" "}
-        [{props.word.pinyin.join(", ")}]
-      </span>
+    <div class={styles.wordTitleBase}>
+      <span class={styles.fontSimplifiedChinese}>{props.word.simplified}</span>
+      <span class={styles.pinyin}>{formattedPinyin()}</span>
     </div>
   );
 };
@@ -170,15 +185,15 @@ export const JmdictWordSenses: Component<{ senses: JMdictSense[] }> = (
   props,
 ) => {
   return (
-    <ol class={styles.WordSenses}>
+    <ol class={styles.wordSenses}>
       {props.senses.map((sense) => (
         <>
           {sense.partOfSpeech && (
-            <div class={styles.WordPartOfSpeech}>
+            <div class={styles.wordPartOfSpeech}>
               {sense.partOfSpeech.join("; ")}
             </div>
           )}
-          <li class={styles.WordSense}>
+          <li class={styles.wordSense}>
             {sense.gloss.map((gloss) => gloss.text).join("; ")}
           </li>
         </>
@@ -189,9 +204,9 @@ export const JmdictWordSenses: Component<{ senses: JMdictSense[] }> = (
 
 export const CedictWordSenses: Component<{ senses: string[][] }> = (props) => {
   return (
-    <ol class={styles.WordSenses}>
+    <ol class={styles.wordSenses}>
       {props.senses.map((senseGroup) => (
-        <li class={styles.WordSense}>{senseGroup.join("; ")}</li>
+        <li class={styles.wordSense}>{senseGroup.join("; ")}</li>
       ))}
     </ol>
   );

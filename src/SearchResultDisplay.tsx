@@ -52,7 +52,7 @@ const SearchResultDisplay: Component<SearchResultDisplayProps> = (props) => {
           >
             <p>Searching in Japanese (English).</p>
           </Show>
-          <Show when={props.currentQueryType === "chinese-pinyin"}>
+          <Show when={props.currentQueryType === "chinese-native"}>
             <p>Searching in Chinese (Pinyin/Characters).</p>
           </Show>
           <Show when={props.currentQueryType === "chinese-english"}>

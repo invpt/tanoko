@@ -10,7 +10,7 @@ export type QueryType =
   | "japanese-english"
   | "japanese-native"
   | "chinese-english"
-  | "chinese-pinyin";
+  | "chinese-native";
 
 export type DictionaryEntry = JMdictWord | CedictWord;
 
@@ -45,10 +45,10 @@ import { createEffect, createSignal, onCleanup } from "solid-js";
 import { IDBPDatabase } from "idb";
 import { DictDbSchema, openDictDb } from "./db";
 
-import jmdictIndexUrl from "../assets/gen/jmdict-index-english.dsv?url";
+import jmdictIndexEnglishUrl from "../assets/gen/jmdict-index-english.dsv?url";
 import jmdictIndexNativeUrl from "../assets/gen/jmdict-index-native.dsv?url";
 import cedictIndexEnglishUrl from "../assets/gen/cedict-index-english.dsv?url";
-import cedictIndexPinyinUrl from "../assets/gen/cedict-index-native.dsv?url";
+import cedictIndexNativeUrl from "../assets/gen/cedict-index-native.dsv?url";
 
 let status: DictStatus = { status: "loading", bytes: 0 };
 
@@ -110,7 +110,7 @@ class Dict {
   private jmdictEnglishIndex: Index;
   private jmdictNativeIndex: Index;
   private cedictEnglishIndex: Index;
-  private cedictPinyinIndex: Index;
+  private cedictNativeIndex: Index;
 
   static async load(progress: (bytes: number) => void) {
     const [
@@ -119,7 +119,7 @@ class Dict {
       jmdictEnglishIndex,
       jmdictNativeIndex,
       cedictEnglishIndex,
-      cedictPinyinIndex,
+      cedictNativeIndex,
     ] = await Promise.all([
       new Promise((resolve, reject) => {
         const importWorker = new ImportWorker();
@@ -142,17 +142,17 @@ class Dict {
         };
       }),
       openDictDb(),
-      Index.load(jmdictIndexUrl),
+      Index.load(jmdictIndexEnglishUrl),
       Index.load(jmdictIndexNativeUrl),
       Index.load(cedictIndexEnglishUrl),
-      Index.load(cedictIndexPinyinUrl),
+      Index.load(cedictIndexNativeUrl),
     ]);
     return new Dict(
       db,
       jmdictEnglishIndex,
       jmdictNativeIndex,
       cedictEnglishIndex,
-      cedictPinyinIndex,
+      cedictNativeIndex,
     );
   }
 
@@ -161,13 +161,13 @@ class Dict {
     jmdictEnglishIndex: Index,
     jmdictNativeIndex: Index,
     cedictEnglishIndex: Index,
-    cedictPinyinIndex: Index,
+    cedictNativeIndex: Index,
   ) {
     this.db = db;
     this.jmdictEnglishIndex = jmdictEnglishIndex;
     this.jmdictNativeIndex = jmdictNativeIndex;
     this.cedictEnglishIndex = cedictEnglishIndex;
-    this.cedictPinyinIndex = cedictPinyinIndex;
+    this.cedictNativeIndex = cedictNativeIndex;
   }
 
   async *search(
@@ -190,8 +190,8 @@ class Dict {
         index = this.cedictEnglishIndex;
         storeName = "cedict";
         break;
-      case "chinese-pinyin":
-        index = this.cedictPinyinIndex;
+      case "chinese-native":
+        index = this.cedictNativeIndex;
         storeName = "cedict";
         break;
       default:

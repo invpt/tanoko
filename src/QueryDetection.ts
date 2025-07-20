@@ -13,7 +13,7 @@ export function isPureRomajiCandidate(query: string): boolean {
 export type QueryType =
   | "japanese-native"
   | "japanese-english"
-  | "chinese-pinyin"
+  | "chinese-native"
   | "chinese-english";
 
 import { toHiragana } from "wanakana";
@@ -69,7 +69,7 @@ export function determineQueryType(
     const isPinyin = isPinyinCandidate(originalQuery);
 
     if (hasCJK || isPinyin) {
-      actualQueryType = "chinese-pinyin";
+      actualQueryType = "chinese-native";
     } else {
       actualQueryType = "chinese-english";
     }
@@ -101,7 +101,7 @@ export function suggestQueryType(
   } else {
     return containsCJKUnifiedIdeographs(originalQuery) ||
       isPinyinCandidate(originalQuery)
-      ? "chinese-pinyin"
+      ? "chinese-native"
       : "chinese-english";
   }
 }

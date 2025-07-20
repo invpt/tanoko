@@ -49,6 +49,9 @@ import jmdictIndexEnglishUrl from "../assets/gen/jmdict-index-english.dsv?url";
 import jmdictIndexNativeUrl from "../assets/gen/jmdict-index-native.dsv?url";
 import cedictIndexEnglishUrl from "../assets/gen/cedict-index-english.dsv?url";
 import cedictIndexNativeUrl from "../assets/gen/cedict-index-native.dsv?url";
+import pinyinTrieUrl from "../assets/gen/pinyin-trie.bin?url";
+import pinyinTrieIdMapUrl from "../assets/gen/pinyin-trie-idmap.json?url";
+import pinyinTrieMetadataUrl from "../assets/gen/pinyin-trie-metadata.json?url";
 
 let status: DictStatus = { status: "loading", bytes: 0 };
 
@@ -111,6 +114,7 @@ class Dict {
   private jmdictNativeIndex: Index;
   private cedictEnglishIndex: Index;
   private cedictNativeIndex: Index;
+  private pinyinRadixIndex: RadixTreeIndex;
 
   static async load(progress: (bytes: number) => void) {
     const [
@@ -120,6 +124,7 @@ class Dict {
       jmdictNativeIndex,
       cedictEnglishIndex,
       cedictNativeIndex,
+      pinyinRadixIndex,
     ] = await Promise.all([
       new Promise((resolve, reject) => {
         const importWorker = new ImportWorker();
@@ -146,6 +151,11 @@ class Dict {
       Index.load(jmdictIndexNativeUrl),
       Index.load(cedictIndexEnglishUrl),
       Index.load(cedictIndexNativeUrl),
+      RadixTreeIndex.load(
+        pinyinTrieUrl,
+        pinyinTrieIdMapUrl,
+        pinyinTrieMetadataUrl,
+      ),
     ]);
     return new Dict(
       db,
@@ -153,6 +163,7 @@ class Dict {
       jmdictNativeIndex,
       cedictEnglishIndex,
       cedictNativeIndex,
+      pinyinRadixIndex,
     );
   }
 
@@ -162,19 +173,21 @@ class Dict {
     jmdictNativeIndex: Index,
     cedictEnglishIndex: Index,
     cedictNativeIndex: Index,
+    pinyinRadixIndex: RadixTreeIndex,
   ) {
     this.db = db;
     this.jmdictEnglishIndex = jmdictEnglishIndex;
     this.jmdictNativeIndex = jmdictNativeIndex;
     this.cedictEnglishIndex = cedictEnglishIndex;
     this.cedictNativeIndex = cedictNativeIndex;
+    this.pinyinRadixIndex = pinyinRadixIndex;
   }
 
   async *search(
     query: string,
     queryType: QueryType,
   ): AsyncGenerator<DictionaryEntry> {
-    let index: Index;
+    let index: Index | RadixTreeIndex;
     let storeName: "jmdict" | "cedict";
 
     switch (queryType) {
@@ -191,7 +204,8 @@ class Dict {
         storeName = "cedict";
         break;
       case "chinese-native":
-        index = this.cedictNativeIndex;
+        // Use radix tree for Chinese native search (pinyin + characters)
+        index = this.pinyinRadixIndex;
         storeName = "cedict";
         break;
       default:
@@ -296,5 +310,296 @@ class Index {
         start = record + 1;
       }
     }
+  }
+}
+
+class RadixTreeIndex {
+  private data: Uint8Array;
+  private idToTraditional: Map<number, string>;
+  private rootOffset: number;
+
+  private constructor(
+    data: Uint8Array,
+    idToTraditional: Map<number, string>,
+    rootOffset: number,
+  ) {
+    this.data = data;
+    this.idToTraditional = idToTraditional;
+    this.rootOffset = rootOffset;
+  }
+
+  static async load(trieUrl: string, idMapUrl: string, metadataUrl: string) {
+    const [trieResp, idMapResp, metadataResp] = await Promise.all([
+      fetch(trieUrl),
+      fetch(idMapUrl),
+      fetch(metadataUrl),
+    ]);
+
+    const data = new Uint8Array(await trieResp.arrayBuffer());
+    const idMapData = await idMapResp.json();
+    const metadata = await metadataResp.json();
+
+    // Convert the ID map to use number keys
+    const idToTraditional = new Map<number, string>();
+    for (const [idStr, traditional] of Object.entries(idMapData)) {
+      idToTraditional.set(parseInt(idStr), traditional as string);
+    }
+
+    const rootOffset = metadata.rootOffset || 0;
+
+    return new RadixTreeIndex(data, idToTraditional, rootOffset);
+  }
+
+  *search(query: string): Generator<string> {
+    const results = new Set<string>();
+    const normalizedQuery = query.toLowerCase().trim();
+
+    if (normalizedQuery.length === 0) {
+      return;
+    }
+
+    // Convert query to UTF-8 bytes
+    const queryBytes = new TextEncoder().encode(normalizedQuery);
+
+    // Search for matches in the radix tree
+    const matches = this.searchInTrie(queryBytes);
+
+    for (const id of matches) {
+      const traditional = this.idToTraditional.get(id);
+      if (traditional && !results.has(traditional)) {
+        results.add(traditional);
+        yield traditional;
+      }
+    }
+  }
+
+  private searchInTrie(queryBytes: Uint8Array): Set<number> {
+    const results = new Set<number>();
+
+    if (this.data.length === 0 || queryBytes.length === 0) {
+      return results;
+    }
+
+    try {
+      this.traverseNode(this.rootOffset, queryBytes, 0, results);
+    } catch (error) {
+      console.warn("Error searching radix tree:", error, {
+        queryBytes,
+        dataLength: this.data.length,
+        rootOffset: this.rootOffset,
+      });
+    }
+
+    return results;
+  }
+
+  private traverseNode(
+    nodeOffset: number,
+    queryBytes: Uint8Array,
+    queryIndex: number,
+    results: Set<number>,
+  ): void {
+    if (nodeOffset >= this.data.length) {
+      console.warn("Node offset out of bounds:", nodeOffset, this.data.length);
+      return;
+    }
+
+    let offset = nodeOffset;
+
+    try {
+      // Read node structure: numChildren, numResults, edgeLen, edge, children, results
+      const [numChildren, newOffset1] = this.decodeVarint(offset);
+      const [numResults, newOffset2] = this.decodeVarint(newOffset1);
+      const [edgeLen, newOffset3] = this.decodeVarint(newOffset2);
+
+      if (edgeLen > 1000) {
+        // Sanity check
+        console.warn(
+          "Suspicious edge length:",
+          edgeLen,
+          "at offset:",
+          nodeOffset,
+        );
+        return;
+      }
+
+      offset = newOffset3;
+
+      // Bounds check for edge
+      if (offset + edgeLen > this.data.length) {
+        console.warn(
+          "Edge extends beyond data bounds:",
+          offset,
+          edgeLen,
+          this.data.length,
+        );
+        return;
+      }
+
+      // Read edge as raw bytes - don't decode as it might not be valid UTF-8
+      const edgeBytes = this.data.slice(offset, offset + edgeLen);
+      offset += edgeLen;
+
+      // Check if query bytes match this edge
+      const remainingQueryBytes = queryBytes.slice(queryIndex);
+
+      // Check if remaining query starts with edge bytes
+      const edgeMatches =
+        remainingQueryBytes.length >= edgeBytes.length &&
+        this.bytesEqual(
+          remainingQueryBytes.slice(0, edgeBytes.length),
+          edgeBytes,
+        );
+
+      if (edgeMatches) {
+        // Edge matches, continue traversal
+        const newQueryIndex = queryIndex + edgeBytes.length;
+
+        // If we've consumed the entire query, collect results from this node and descendants
+        if (newQueryIndex >= queryBytes.length) {
+          // Read results from this node
+          let resultsOffset = offset;
+
+          // Skip children first
+          for (let i = 0; i < numChildren; i++) {
+            const [, nextOffset1] = this.decodeVarint(resultsOffset); // first byte
+            const [, nextOffset2] = this.decodeVarint(nextOffset1); // child offset
+            resultsOffset = nextOffset2;
+          }
+
+          // Now read results
+          for (let i = 0; i < numResults; i++) {
+            const [resultId, nextOffset] = this.decodeVarint(resultsOffset);
+            results.add(resultId);
+            resultsOffset = nextOffset;
+          }
+
+          // For prefix matching, also traverse children to get results from descendant nodes
+          this.traverseAllDescendants(nodeOffset, results);
+        } else {
+          // Continue searching in children
+          for (let i = 0; i < numChildren; i++) {
+            const [firstByte, nextOffset1] = this.decodeVarint(offset);
+            const [childOffset, nextOffset2] = this.decodeVarint(nextOffset1);
+            offset = nextOffset2;
+
+            // Check if the next byte in query matches this child's first byte
+            if (
+              newQueryIndex < queryBytes.length &&
+              queryBytes[newQueryIndex] === firstByte
+            ) {
+              this.traverseNode(
+                childOffset,
+                queryBytes,
+                newQueryIndex,
+                results,
+              );
+            }
+          }
+        }
+      } else if (
+        edgeBytes.length >= remainingQueryBytes.length &&
+        this.bytesEqual(
+          edgeBytes.slice(0, remainingQueryBytes.length),
+          remainingQueryBytes,
+        )
+      ) {
+        // Query is a prefix of the edge - collect all results from this subtree
+        this.traverseAllDescendants(nodeOffset, results);
+      }
+      // If neither case matches, this path doesn't match the query
+    } catch (error) {
+      console.warn("Error traversing node at offset:", nodeOffset, error);
+    }
+  }
+
+  private traverseAllDescendants(
+    nodeOffset: number,
+    results: Set<number>,
+    depth: number = 0,
+  ): void {
+    if (nodeOffset >= this.data.length || depth > 20) {
+      // Prevent infinite recursion
+      return;
+    }
+
+    let offset = nodeOffset;
+
+    try {
+      const [numChildren, newOffset1] = this.decodeVarint(offset);
+      const [numResults, newOffset2] = this.decodeVarint(newOffset1);
+      const [edgeLen, newOffset3] = this.decodeVarint(newOffset2);
+
+      offset = newOffset3 + edgeLen; // Skip edge
+
+      // Store children offsets
+      const childOffsets: number[] = [];
+      for (let i = 0; i < numChildren; i++) {
+        const [, nextOffset1] = this.decodeVarint(offset); // first byte
+        const [childOffset, nextOffset2] = this.decodeVarint(nextOffset1);
+        if (childOffset < this.data.length) {
+          childOffsets.push(childOffset);
+        }
+        offset = nextOffset2;
+      }
+
+      // Read results from this node
+      for (let i = 0; i < numResults; i++) {
+        const [resultId, nextOffset] = this.decodeVarint(offset);
+        results.add(resultId);
+        offset = nextOffset;
+      }
+
+      // Recursively traverse children
+      for (const childOffset of childOffsets) {
+        this.traverseAllDescendants(childOffset, results, depth + 1);
+      }
+    } catch (error) {
+      console.warn(
+        "Error in traverseAllDescendants at offset:",
+        nodeOffset,
+        error,
+      );
+    }
+  }
+
+  private bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+    if (a.length !== b.length) {
+      return false;
+    }
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private decodeVarint(offset: number): [number, number] {
+    let value = 0;
+    let shift = 0;
+    let currentOffset = offset;
+
+    if (offset >= this.data.length) {
+      throw new Error(
+        `Varint decode offset out of bounds: ${offset} >= ${this.data.length}`,
+      );
+    }
+
+    while (currentOffset < this.data.length && shift < 35) {
+      // Prevent overflow
+      const byte = this.data[currentOffset];
+      currentOffset++;
+
+      value |= (byte & 0x7f) << shift;
+
+      if ((byte & 0x80) === 0) {
+        break;
+      }
+
+      shift += 7;
+    }
+
+    return [value, currentOffset];
   }
 }

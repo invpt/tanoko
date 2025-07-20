@@ -12,6 +12,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2.0.1
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
       - name: Download rclone
         run: |
           curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip
@@ -39,7 +43,9 @@ jobs:
       - name: Install dependencies
         run: bun install
       - name: Generate assets
-        run: bun run generate/generate.ts
+        run: |
+          go build -o generator/generator_app generator
+          ./generator/generator_app
       - name: Build
         run: bun run build
       - name: Deploy with rclone

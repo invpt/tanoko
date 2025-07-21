@@ -93,16 +93,42 @@ func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) e
 		return fmt.Errorf("failed to write jmdict english index: %w", err)
 	}
 
-	nativeIndex := buildJmdictNativeIndex(jm)
-	if err := writeJmdictNativeIndex(nativeIndex, outputDir); err != nil {
-		return fmt.Errorf("failed to write jmdict native index: %w", err)
+	// Build and write native radix trie
+	nativeTrieRoot, err := buildJmdictNativeRadixTrie(jm)
+	if err != nil {
+		return fmt.Errorf("failed to build jmdict native trie: %w", err)
+	}
+
+	// Print radix tree statistics
+	stats := calculateRadixTreeStats(nativeTrieRoot)
+	fmt.Println("JMdict Native Radix Tree Statistics:")
+	printRadixTreeStats(stats)
+
+	flattenedNativeTrie, rootOffset, err := flattenTrie(nativeTrieRoot)
+	if err != nil {
+		return fmt.Errorf("failed to flatten jmdict native trie: %w", err)
+	}
+
+	if err := writeJmdictNativeRadixTrie(flattenedNativeTrie, outputDir); err != nil {
+		return fmt.Errorf("failed to write jmdict native trie: %w", err)
+	}
+
+	if err := writeJmdictNativeRadixTrieMetadata(int(rootOffset), outputDir); err != nil {
+		return fmt.Errorf("failed to write jmdict native trie metadata: %w", err)
+	}
+
+	if err := writeJmdictNativeRadixTrieIdMap(jm, outputDir); err != nil {
+		return fmt.Errorf("failed to write jmdict native trie id map: %w", err)
 	}
 
 	return nil
 }
 
 func generateChinese(ce cedict.CEDICT, outputDir string) error {
-	if err := writeCedictWords(ce, outputDir); err != nil {
+	// Create ID map for Chinese entries
+	idMap := newResultIDMap()
+
+	if err := writeCedictWords(ce, outputDir, idMap); err != nil {
 		return fmt.Errorf("failed to write cedict words: %w", err)
 	}
 
@@ -111,7 +137,6 @@ func generateChinese(ce cedict.CEDICT, outputDir string) error {
 		return fmt.Errorf("failed to write cedict english index: %w", err)
 	}
 
-	idMap := newResultIDMap()
 	pinyinTrieRoot, err := buildPinyinTrie(ce, idMap)
 	if err != nil {
 		return fmt.Errorf("failed to build pinyin trie: %w", err)
@@ -119,6 +144,7 @@ func generateChinese(ce cedict.CEDICT, outputDir string) error {
 
 	// Print radix tree statistics
 	stats := calculateRadixTreeStats(pinyinTrieRoot)
+	fmt.Println("CEDICT Native Radix Tree Statistics:")
 	printRadixTreeStats(stats)
 
 	flattenedPinyinTrie, rootOffset, err := flattenTrie(pinyinTrieRoot)
@@ -216,29 +242,63 @@ func writeJmdictWords(jm jmdict.JMdict, outputDir string) error {
 	return nil
 }
 
-func writeJmdictNativeIndex(index []IndexItem, outputDir string) error {
-	file, err := os.Create(filepath.Join(outputDir, "jmdict-index-native.dsv"))
+func buildJmdictNativeRadixTrie(jm jmdict.JMdict) (*RadixNode, error) {
+	root := newRadixNode()
+	idMap := newResultIDMap()
+
+	for _, word := range jm.Words {
+		entryID := idMap.GetID(word.ID)
+
+		// Process kanji readings
+		for _, kanji := range word.Kanji {
+			insertIntoRadixTree(root, kanji.Text, entryID)
+		}
+
+		// Process kana readings
+		for _, kana := range word.Kana {
+			insertIntoRadixTree(root, kana.Text, entryID)
+		}
+	}
+	return root, nil
+}
+
+func writeJmdictNativeRadixTrie(flattenedTrie []byte, outputDir string) error {
+	return os.WriteFile(filepath.Join(outputDir, "jmdict-native-trie.bin"), flattenedTrie, 0644)
+}
+
+func writeJmdictNativeRadixTrieIdMap(jm jmdict.JMdict, outputDir string) error {
+	// Create a mapping from numeric ID to word ID string
+	mapping := make(map[string]string)
+	idMap := newResultIDMap()
+
+	for _, word := range jm.Words {
+		numericID := idMap.GetID(word.ID)
+		mapping[fmt.Sprintf("%d", numericID)] = word.ID
+	}
+
+	file, err := os.Create(filepath.Join(outputDir, "jmdict-native-trie-id-map.json"))
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	for _, item := range index {
-		if _, err := file.WriteString(item.Text); err != nil {
-			return err
-		}
-		if _, err := file.WriteString(unitSeparator); err != nil {
-			return err
-		}
-		if _, err := file.WriteString(item.ID); err != nil {
-			return err
-		}
-		if _, err := file.WriteString(recordSeparator); err != nil {
-			return err
-		}
+	encoder := json.NewEncoder(file)
+	return encoder.Encode(mapping)
+}
+
+func writeJmdictNativeRadixTrieMetadata(rootOffset int, outputDir string) error {
+	metadata := struct {
+		RootOffset int `json:"rootOffset"`
+	}{
+		RootOffset: rootOffset,
 	}
 
-	return nil
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filepath.Join(outputDir, "jmdict-native-trie-metadata.json"), data, 0644)
 }
 
 func writeJmdictMeta(jm jmdict.JMdict, outputDir string) error {
@@ -447,20 +507,29 @@ func writeJmdictEnglishIndex(index []IndexItem, outputDir string) error {
 	return nil
 }
 
-func writeCedictWords(ce cedict.CEDICT, outputDir string) error {
+func writeCedictWords(ce cedict.CEDICT, outputDir string, idMap *ResultIDMap) error {
 	file, err := os.Create(filepath.Join(outputDir, "cedict-words.dsv"))
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	for _, entry := range ce {
-		data, err := json.Marshal(entry)
+	for _, word := range ce {
+		// Create a copy of the word with indexId field
+		wordWithIndex := struct {
+			cedict.Entry
+			IndexId uint32 `json:"indexId"`
+		}{
+			Entry:   word,
+			IndexId: idMap.GetID(word.Traditional),
+		}
+
+		data, err := json.Marshal(wordWithIndex)
 		if err != nil {
 			return err
 		}
 
-		if _, err := file.WriteString(entry.Traditional); err != nil {
+		if _, err := file.WriteString(word.Traditional); err != nil {
 			return err
 		}
 		if _, err := file.WriteString(unitSeparator); err != nil {

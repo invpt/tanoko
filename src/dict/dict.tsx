@@ -46,9 +46,10 @@ import { IDBPDatabase } from "idb";
 import { DictDbSchema, openDictDb } from "./db";
 
 import jmdictIndexEnglishUrl from "../assets/gen/jmdict-index-english.dsv?url";
-import jmdictIndexNativeUrl from "../assets/gen/jmdict-index-native.dsv?url";
+import jmdictNativeTrieUrl from "../assets/gen/jmdict-native-trie.bin?url";
+import jmdictNativeTrieIdMapUrl from "../assets/gen/jmdict-native-trie-id-map.json?url";
+import jmdictNativeTrieMetadataUrl from "../assets/gen/jmdict-native-trie-metadata.json?url";
 import cedictIndexEnglishUrl from "../assets/gen/cedict-index-english.dsv?url";
-import cedictIndexNativeUrl from "../assets/gen/cedict-index-native.dsv?url";
 import pinyinTrieUrl from "../assets/gen/pinyin-trie.bin?url";
 import pinyinTrieIdMapUrl from "../assets/gen/pinyin-trie-idmap.json?url";
 import pinyinTrieMetadataUrl from "../assets/gen/pinyin-trie-metadata.json?url";
@@ -111,9 +112,8 @@ export const dict = {
 class Dict {
   private db: IDBPDatabase<DictDbSchema>;
   private jmdictEnglishIndex: Index;
-  private jmdictNativeIndex: Index;
+  private jmdictNativeRadixIndex: RadixTreeIndex;
   private cedictEnglishIndex: Index;
-  private cedictNativeIndex: Index;
   private pinyinRadixIndex: RadixTreeIndex;
 
   static async load(progress: (bytes: number) => void) {
@@ -121,9 +121,8 @@ class Dict {
       ,
       db,
       jmdictEnglishIndex,
-      jmdictNativeIndex,
+      jmdictNativeRadixIndex,
       cedictEnglishIndex,
-      cedictNativeIndex,
       pinyinRadixIndex,
     ] = await Promise.all([
       new Promise((resolve, reject) => {
@@ -148,9 +147,12 @@ class Dict {
       }),
       openDictDb(),
       Index.load(jmdictIndexEnglishUrl),
-      Index.load(jmdictIndexNativeUrl),
+      RadixTreeIndex.load(
+        jmdictNativeTrieUrl,
+        jmdictNativeTrieIdMapUrl,
+        jmdictNativeTrieMetadataUrl,
+      ),
       Index.load(cedictIndexEnglishUrl),
-      Index.load(cedictIndexNativeUrl),
       RadixTreeIndex.load(
         pinyinTrieUrl,
         pinyinTrieIdMapUrl,
@@ -160,9 +162,8 @@ class Dict {
     return new Dict(
       db,
       jmdictEnglishIndex,
-      jmdictNativeIndex,
+      jmdictNativeRadixIndex,
       cedictEnglishIndex,
-      cedictNativeIndex,
       pinyinRadixIndex,
     );
   }
@@ -170,16 +171,14 @@ class Dict {
   private constructor(
     db: IDBPDatabase<DictDbSchema>,
     jmdictEnglishIndex: Index,
-    jmdictNativeIndex: Index,
+    jmdictNativeRadixIndex: RadixTreeIndex,
     cedictEnglishIndex: Index,
-    cedictNativeIndex: Index,
     pinyinRadixIndex: RadixTreeIndex,
   ) {
     this.db = db;
     this.jmdictEnglishIndex = jmdictEnglishIndex;
-    this.jmdictNativeIndex = jmdictNativeIndex;
+    this.jmdictNativeRadixIndex = jmdictNativeRadixIndex;
     this.cedictEnglishIndex = cedictEnglishIndex;
-    this.cedictNativeIndex = cedictNativeIndex;
     this.pinyinRadixIndex = pinyinRadixIndex;
   }
 
@@ -196,7 +195,8 @@ class Dict {
         storeName = "jmdict";
         break;
       case "japanese-native":
-        index = this.jmdictNativeIndex;
+        // Use radix tree for Japanese native search (kanji + kana)
+        index = this.jmdictNativeRadixIndex;
         storeName = "jmdict";
         break;
       case "chinese-english":
@@ -315,16 +315,16 @@ class Index {
 
 class RadixTreeIndex {
   private data: Uint8Array;
-  private idToTraditional: Map<number, string>;
+  private idToEntry: Map<number, string>;
   private rootOffset: number;
 
   private constructor(
     data: Uint8Array,
-    idToTraditional: Map<number, string>,
+    idToEntry: Map<number, string>,
     rootOffset: number,
   ) {
     this.data = data;
-    this.idToTraditional = idToTraditional;
+    this.idToEntry = idToEntry;
     this.rootOffset = rootOffset;
   }
 
@@ -340,14 +340,14 @@ class RadixTreeIndex {
     const metadata = await metadataResp.json();
 
     // Convert the ID map to use number keys
-    const idToTraditional = new Map<number, string>();
-    for (const [idStr, traditional] of Object.entries(idMapData)) {
-      idToTraditional.set(parseInt(idStr), traditional as string);
+    const idToEntry = new Map<number, string>();
+    for (const [idStr, entryId] of Object.entries(idMapData)) {
+      idToEntry.set(parseInt(idStr), entryId as string);
     }
 
     const rootOffset = metadata.rootOffset || 0;
 
-    return new RadixTreeIndex(data, idToTraditional, rootOffset);
+    return new RadixTreeIndex(data, idToEntry, rootOffset);
   }
 
   *search(query: string): Generator<string> {
@@ -365,10 +365,10 @@ class RadixTreeIndex {
     const matches = this.searchInTrie(queryBytes);
 
     for (const id of matches) {
-      const traditional = this.idToTraditional.get(id);
-      if (traditional && !results.has(traditional)) {
-        results.add(traditional);
-        yield traditional;
+      const entryId = this.idToEntry.get(id);
+      if (entryId && !results.has(entryId)) {
+        results.add(entryId);
+        yield entryId;
       }
     }
   }

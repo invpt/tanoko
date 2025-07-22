@@ -5,47 +5,47 @@ import (
 	"sort"
 )
 
-// RadixNode represents a node in the radix tree (compressed tree).
-type RadixNode struct {
+// radixNode represents a node in the radix tree (compressed tree).
+type radixNode struct {
 	edge     string
-	children map[byte]*RadixNode
+	children map[byte]*radixNode
 	results  []uint32
 }
 
 // newRadixNode creates and returns a new RadixNode.
-func newRadixNode() *RadixNode {
-	return &RadixNode{
+func newRadixNode() *radixNode {
+	return &radixNode{
 		edge:     "",
-		children: make(map[byte]*RadixNode),
+		children: make(map[byte]*radixNode),
 		results:  []uint32{},
 	}
 }
 
 // newRadixNodeWithEdge creates a new RadixNode with a specific edge
-func newRadixNodeWithEdge(edge string) *RadixNode {
-	return &RadixNode{
+func newRadixNodeWithEdge(edge string) *radixNode {
+	return &radixNode{
 		edge:     edge,
-		children: make(map[byte]*RadixNode),
+		children: make(map[byte]*radixNode),
 		results:  []uint32{},
 	}
 }
 
-// ResultIDMap maps string IDs (like Traditional Chinese characters) to unique uint32 IDs.
-type ResultIDMap struct {
+// resultIDMap maps string IDs (like Traditional Chinese characters) to unique uint32 IDs.
+type resultIDMap struct {
 	mapping map[string]uint32
 	nextID  uint32
 }
 
 // newResultIDMap creates and returns a new ResultIDMap.
-func newResultIDMap() *ResultIDMap {
-	return &ResultIDMap{
+func newResultIDMap() *resultIDMap {
+	return &resultIDMap{
 		mapping: make(map[string]uint32),
 		nextID:  0,
 	}
 }
 
 // GetID returns the unique uint32 ID for a given string ID, assigning a new one if it doesn't exist.
-func (m *ResultIDMap) GetID(str string) uint32 {
+func (m *resultIDMap) GetID(str string) uint32 {
 	if id, ok := m.mapping[str]; ok {
 		return id
 	}
@@ -56,7 +56,7 @@ func (m *ResultIDMap) GetID(str string) uint32 {
 }
 
 // insertIntoRadixTree inserts a UTF-8 byte sequence into the radix tree
-func insertIntoRadixTree(root *RadixNode, key string, resultID uint32) {
+func insertIntoRadixTree(root *radixNode, key string, resultID uint32) {
 	if len(key) == 0 {
 		root.results = append(root.results, resultID)
 		sort.Slice(root.results, func(i, j int) bool {
@@ -173,13 +173,13 @@ func encodeVarint(value uint32) []byte {
 }
 
 // flattenTree converts the radix tree into variable-length encoded bytes using post-order traversal.
-func flattenTree(root *RadixNode) ([]byte, uint32, error) {
+func flattenTree(root *radixNode) ([]byte, uint32, error) {
 	var flattenedData []byte
-	nodeOffsets := make(map[*RadixNode]uint32)
+	nodeOffsets := make(map[*radixNode]uint32)
 
 	// Post-order traversal: encode children before parents
-	var encodeNode func(*RadixNode) uint32
-	encodeNode = func(node *RadixNode) uint32 {
+	var encodeNode func(*radixNode) uint32
+	encodeNode = func(node *radixNode) uint32 {
 		// If already encoded, return its offset
 		if offset, exists := nodeOffsets[node]; exists {
 			return offset
@@ -252,7 +252,7 @@ type RadixTreeStats struct {
 }
 
 // calculateRadixTreeStats performs a depth-first traversal to collect statistics
-func calculateRadixTreeStats(root *RadixNode) *RadixTreeStats {
+func calculateRadixTreeStats(root *radixNode) *RadixTreeStats {
 	stats := &RadixTreeStats{
 		UniqueResults: make(map[uint32]bool),
 	}
@@ -262,7 +262,7 @@ func calculateRadixTreeStats(root *RadixNode) *RadixTreeStats {
 }
 
 // calculateStatsRecursive recursively calculates statistics for the radix tree
-func calculateStatsRecursive(node *RadixNode, stats *RadixTreeStats, depth int) {
+func calculateStatsRecursive(node *radixNode, stats *RadixTreeStats, depth int) {
 	if node == nil {
 		return
 	}
@@ -304,7 +304,7 @@ func printRadixTreeStats(stats *RadixTreeStats) {
 	fmt.Printf("Maximum depth: %d\n", stats.MaxDepth)
 	fmt.Printf("Total edge length: %d characters\n", stats.TotalEdgeLength)
 	fmt.Printf("Average edge length per node: %.2f characters\n", float64(stats.TotalEdgeLength)/float64(stats.TotalNodes))
-	fmt.Printf("Total result entrees: %d\n", stats.TotalResults)
+	fmt.Printf("Total result entries: %d\n", stats.TotalResults)
 	fmt.Printf("Unique results: %d\n", len(stats.UniqueResults))
 	if len(stats.UniqueResults) > 0 {
 		fmt.Printf("Average results per unique entry: %.2f\n", float64(stats.TotalResults)/float64(len(stats.UniqueResults)))

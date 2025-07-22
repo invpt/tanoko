@@ -114,7 +114,7 @@ type JMdictDictionaryMetadata struct {
 type JMdict struct {
 	JMdictDictionaryMetadata
 
-	// Words contains list of dictionary entrees/words
+	// Words contains list of dictionary entries/words
 	Words []JMdictWord `json:"words"`
 }
 
@@ -227,7 +227,7 @@ type JMdictSense struct {
 	Info []string `json:"info"`
 
 	// LanguageSource contains source language information for borrowed words and wasei-eigo.
-	// Will be empty for words with Japanese origin (most of JMdict entrees)
+	// Will be empty for words with Japanese origin (most of JMdict entries)
 	LanguageSource []JMdictLanguageSource `json:"languageSource"`
 
 	// Gloss contains translations of this word
@@ -298,7 +298,7 @@ type JMdictGloss struct {
 type JMnedict struct {
 	JMdictDictionaryMetadata
 
-	// Words contains list of dictionary entrees/words
+	// Words contains list of dictionary entries/words
 	Words []JMnedictWord `json:"words"`
 }
 
@@ -387,7 +387,7 @@ type Kanjidic2DictionaryMetadata struct {
 type Kanjidic2 struct {
 	Kanjidic2DictionaryMetadata
 
-	// Characters contains list of dictionary entrees/characters
+	// Characters contains list of dictionary entries/characters
 	Characters []Kanjidic2Character `json:"characters"`
 }
 

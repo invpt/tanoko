@@ -22,11 +22,6 @@ func generateChinese(ce cedict.CEDICT, outputDir string) error {
 		return fmt.Errorf("failed to write cedict words: %w", err)
 	}
 
-	englishIndex := buildCedictEnglishIndex(ce)
-	if err := writeCedictEnglishIndex(englishIndex, outputDir); err != nil {
-		return fmt.Errorf("failed to write cedict english index: %w", err)
-	}
-
 	pinyinTreeRoot, err := buildPinyinTree(ce, idMap)
 	if err != nil {
 		return fmt.Errorf("failed to build pinyin tree: %w", err)
@@ -50,10 +45,14 @@ func generateChinese(ce cedict.CEDICT, outputDir string) error {
 		return fmt.Errorf("failed to write pinyin tree metadata: %w", err)
 	}
 
+	if err := generateCedictEnglishIndex(ce, idMap, outputDir); err != nil {
+		return fmt.Errorf("failed to generate cedict english index: %w", err)
+	}
+
 	return nil
 }
 
-func writeCedictWords(ce cedict.CEDICT, outputDir string, idMap *ResultIDMap) (err error) {
+func writeCedictWords(ce cedict.CEDICT, outputDir string, idMap *resultIDMap) (err error) {
 	file, err := os.Create(filepath.Join(outputDir, "cedict.bin"))
 	if err != nil {
 		return
@@ -70,7 +69,7 @@ func writeCedictWords(ce cedict.CEDICT, outputDir string, idMap *ResultIDMap) (e
 			return
 		}
 
-		encode.Uint(b, idMap.GetID(word.Traditional))
+		encode.Uvarint(b, idMap.GetID(word.Traditional))
 
 		encode.String(b, word.Traditional)
 
@@ -240,8 +239,8 @@ func writeCedictEnglishIndex(index []IndexItem, outputDir string) error {
 	return nil
 }
 
-// buildPinyinTree constructs a radix tree from CEDICT pinyin entrees.
-func buildPinyinTree(ce cedict.CEDICT, idMap *ResultIDMap) (*RadixNode, error) {
+// buildPinyinTree constructs a radix tree from CEDICT pinyin entries.
+func buildPinyinTree(ce cedict.CEDICT, idMap *resultIDMap) (*radixNode, error) {
 	root := newRadixNode()
 
 	for _, entry := range ce {

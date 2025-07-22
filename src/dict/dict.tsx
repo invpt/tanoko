@@ -341,7 +341,7 @@ class RadixTreeIndex {
 
     // Convert the ID map to use number keys
     const idToEntry = new Map<number, string>();
-    for (const [idStr, entryId] of Object.entrees(idMapData)) {
+    for (const [idStr, entryId] of Object.entries(idMapData)) {
       idToEntry.set(parseInt(idStr), entryId as string);
     }
 

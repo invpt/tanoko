@@ -25,11 +25,6 @@ func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) e
 		return fmt.Errorf("failed to write jmdict meta: %w", err)
 	}
 
-	englishIndex := buildJmdictEnglishIndex(jm)
-	if err := writeJmdictEnglishIndex(englishIndex, outputDir); err != nil {
-		return fmt.Errorf("failed to write jmdict english index: %w", err)
-	}
-
 	nativeTreeRoot, err := buildJmdictNativeRadixTree(jm, idMap)
 	if err != nil {
 		return fmt.Errorf("failed to build jmdict native tree: %w", err)
@@ -52,10 +47,14 @@ func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) e
 		return fmt.Errorf("failed to write jmdict native tree metadata: %w", err)
 	}
 
+	if err := generateJmdictEnglishIndex(jm, idMap, outputDir); err != nil {
+		return fmt.Errorf("failed to generate jmdict english index: %w", err)
+	}
+
 	return nil
 }
 
-func writeJmdict(jm jmdict.JMdict, idMap *ResultIDMap, outputDir string) (err error) {
+func writeJmdict(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) (err error) {
 	file, err := os.Create(filepath.Join(outputDir, "jmdict.bin"))
 	if err != nil {
 		return
@@ -72,7 +71,7 @@ func writeJmdict(jm jmdict.JMdict, idMap *ResultIDMap, outputDir string) (err er
 			return
 		}
 
-		encode.Uint(b, idMap.GetID(word.ID))
+		encode.Uvarint(b, idMap.GetID(word.ID))
 
 		encode.String(b, word.ID)
 
@@ -118,7 +117,7 @@ func writeJmdict(jm jmdict.JMdict, idMap *ResultIDMap, outputDir string) (err er
 	return
 }
 
-func buildJmdictNativeRadixTree(jm jmdict.JMdict, idMap *ResultIDMap) (*RadixNode, error) {
+func buildJmdictNativeRadixTree(jm jmdict.JMdict, idMap *resultIDMap) (*radixNode, error) {
 	root := newRadixNode()
 
 	for _, word := range jm.Words {

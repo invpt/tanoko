@@ -124,10 +124,16 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
 export class Decoder {
   private bytes: Uint8Array;
   private offset: number;
+  private view: DataView;
 
   constructor(bytes: Uint8Array) {
     this.bytes = bytes;
     this.offset = 0;
+    this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  }
+
+  seek(offset: number) {
+    this.offset = offset;
   }
 
   array<T>(decoder: (d: Decoder) => T): T[] {
@@ -151,16 +157,12 @@ export class Decoder {
     return new TextDecoder().decode(this.bytes.slice(start, this.offset));
   }
 
-  int(): number {
-    const zigzag = this.varint();
+  varint(): number {
+    const zigzag = this.uvarint();
     return this.unzigzag(zigzag);
   }
 
-  uint(): number {
-    return this.varint();
-  }
-
-  private varint(): number {
+  uvarint(): number {
     let result = 0;
     let shift = 0;
 
@@ -184,5 +186,63 @@ export class Decoder {
 
   private unzigzag(zigzag: number): number {
     return (zigzag >>> 1) ^ -(zigzag & 1);
+  }
+
+  int8(): number {
+    this.checkBounds(1);
+    return this.view.getInt8(this.offset++);
+  }
+
+  uint8(): number {
+    this.checkBounds(1);
+    return this.view.getUint8(this.offset++);
+  }
+
+  int16(): number {
+    this.checkBounds(2);
+    const value = this.view.getInt16(this.offset, true);
+    this.offset += 2;
+    return value;
+  }
+
+  uint16(): number {
+    this.checkBounds(2);
+    const value = this.view.getUint16(this.offset, true);
+    this.offset += 2;
+    return value;
+  }
+
+  int32(): number {
+    this.checkBounds(4);
+    const value = this.view.getInt32(this.offset, true);
+    this.offset += 4;
+    return value;
+  }
+
+  uint32(): number {
+    this.checkBounds(4);
+    const value = this.view.getUint32(this.offset, true);
+    this.offset += 4;
+    return value;
+  }
+
+  int64(): bigint {
+    this.checkBounds(8);
+    const value = this.view.getBigInt64(this.offset, true);
+    this.offset += 8;
+    return value;
+  }
+
+  uint64(): bigint {
+    this.checkBounds(8);
+    const value = this.view.getBigUint64(this.offset, true);
+    this.offset += 8;
+    return value;
+  }
+
+  private checkBounds(bytes: number): void {
+    if (this.offset + bytes > this.bytes.length) {
+      throw new Error(`Not enough bytes to read ${bytes} bytes`);
+    }
   }
 }

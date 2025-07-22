@@ -10,8 +10,10 @@ import (
 )
 
 const (
-	unitSeparator   = "\x1F"
-	recordSeparator = "\x1E"
+	sep1 = "\x1F"
+	sep2 = "\x1E"
+	sep3 = "\x1D"
+	sep4 = "\x1C"
 )
 
 func main() {

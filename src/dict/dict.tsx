@@ -46,13 +46,13 @@ import { IDBPDatabase } from "idb";
 import { DictDbSchema, openDictDb } from "./db";
 
 import jmdictIndexEnglishUrl from "../assets/gen/jmdict-index-english.dsv?url";
-import jmdictNativeTrieUrl from "../assets/gen/jmdict-native-trie.bin?url";
-import jmdictNativeTrieIdMapUrl from "../assets/gen/jmdict-native-trie-id-map.json?url";
-import jmdictNativeTrieMetadataUrl from "../assets/gen/jmdict-native-trie-metadata.json?url";
+import jmdictNativeTreeUrl from "../assets/gen/jmdict-native-tree.bin?url";
+import jmdictNativeTreeIdMapUrl from "../assets/gen/jmdict-native-tree-id-map.json?url";
+import jmdictNativeTreeMetadataUrl from "../assets/gen/jmdict-native-tree-metadata.json?url";
 import cedictIndexEnglishUrl from "../assets/gen/cedict-index-english.dsv?url";
-import pinyinTrieUrl from "../assets/gen/pinyin-trie.bin?url";
-import pinyinTrieIdMapUrl from "../assets/gen/pinyin-trie-idmap.json?url";
-import pinyinTrieMetadataUrl from "../assets/gen/pinyin-trie-metadata.json?url";
+import pinyinTreeUrl from "../assets/gen/pinyin-tree.bin?url";
+import pinyinTreeIdMapUrl from "../assets/gen/pinyin-tree-idmap.json?url";
+import pinyinTreeMetadataUrl from "../assets/gen/pinyin-tree-metadata.json?url";
 
 let status: DictStatus = { status: "loading", bytes: 0 };
 
@@ -148,15 +148,15 @@ class Dict {
       openDictDb(),
       Index.load(jmdictIndexEnglishUrl),
       RadixTreeIndex.load(
-        jmdictNativeTrieUrl,
-        jmdictNativeTrieIdMapUrl,
-        jmdictNativeTrieMetadataUrl,
+        jmdictNativeTreeUrl,
+        jmdictNativeTreeIdMapUrl,
+        jmdictNativeTreeMetadataUrl,
       ),
       Index.load(cedictIndexEnglishUrl),
       RadixTreeIndex.load(
-        pinyinTrieUrl,
-        pinyinTrieIdMapUrl,
-        pinyinTrieMetadataUrl,
+        pinyinTreeUrl,
+        pinyinTreeIdMapUrl,
+        pinyinTreeMetadataUrl,
       ),
     ]);
     return new Dict(
@@ -328,20 +328,20 @@ class RadixTreeIndex {
     this.rootOffset = rootOffset;
   }
 
-  static async load(trieUrl: string, idMapUrl: string, metadataUrl: string) {
-    const [trieResp, idMapResp, metadataResp] = await Promise.all([
-      fetch(trieUrl),
+  static async load(treeUrl: string, idMapUrl: string, metadataUrl: string) {
+    const [treeResp, idMapResp, metadataResp] = await Promise.all([
+      fetch(treeUrl),
       fetch(idMapUrl),
       fetch(metadataUrl),
     ]);
 
-    const data = new Uint8Array(await trieResp.arrayBuffer());
+    const data = new Uint8Array(await treeResp.arrayBuffer());
     const idMapData = await idMapResp.json();
     const metadata = await metadataResp.json();
 
     // Convert the ID map to use number keys
     const idToEntry = new Map<number, string>();
-    for (const [idStr, entryId] of Object.entries(idMapData)) {
+    for (const [idStr, entryId] of Object.entrees(idMapData)) {
       idToEntry.set(parseInt(idStr), entryId as string);
     }
 
@@ -362,7 +362,7 @@ class RadixTreeIndex {
     const queryBytes = new TextEncoder().encode(normalizedQuery);
 
     // Search for matches in the radix tree
-    const matches = this.searchInTrie(queryBytes);
+    const matches = this.searchInTree(queryBytes);
 
     for (const id of matches) {
       const entryId = this.idToEntry.get(id);
@@ -373,7 +373,7 @@ class RadixTreeIndex {
     }
   }
 
-  private searchInTrie(queryBytes: Uint8Array): Set<number> {
+  private searchInTree(queryBytes: Uint8Array): Set<number> {
     const results = new Set<number>();
 
     if (this.data.length === 0 || queryBytes.length === 0) {

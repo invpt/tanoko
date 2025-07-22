@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-// RadixNode represents a node in the radix tree (compressed trie).
+// RadixNode represents a node in the radix tree (compressed tree).
 type RadixNode struct {
 	edge     string
 	children map[byte]*RadixNode
@@ -172,8 +172,8 @@ func encodeVarint(value uint32) []byte {
 	return result
 }
 
-// flattenTrie converts the radix tree into variable-length encoded bytes using post-order traversal.
-func flattenTrie(root *RadixNode) ([]byte, uint32, error) {
+// flattenTree converts the radix tree into variable-length encoded bytes using post-order traversal.
+func flattenTree(root *RadixNode) ([]byte, uint32, error) {
 	var flattenedData []byte
 	nodeOffsets := make(map[*RadixNode]uint32)
 
@@ -208,16 +208,9 @@ func flattenTrie(root *RadixNode) ([]byte, uint32, error) {
 		numResults := uint32(len(node.results))
 		edgeLen := uint32(len(node.edge))
 
-		// 2. Children count (varint)
 		flattenedData = append(flattenedData, encodeVarint(numChildren)...)
-
-		// 1. Result count (varint)
 		flattenedData = append(flattenedData, encodeVarint(numResults)...)
-
-		// 3. Edge length (varint)
 		flattenedData = append(flattenedData, encodeVarint(edgeLen)...)
-
-		// 4. Edge bytes (raw bytes)
 		flattenedData = append(flattenedData, node.edge...)
 
 		// 5. Children as alternating first byte and offset varints
@@ -311,7 +304,7 @@ func printRadixTreeStats(stats *RadixTreeStats) {
 	fmt.Printf("Maximum depth: %d\n", stats.MaxDepth)
 	fmt.Printf("Total edge length: %d characters\n", stats.TotalEdgeLength)
 	fmt.Printf("Average edge length per node: %.2f characters\n", float64(stats.TotalEdgeLength)/float64(stats.TotalNodes))
-	fmt.Printf("Total result entries: %d\n", stats.TotalResults)
+	fmt.Printf("Total result entrees: %d\n", stats.TotalResults)
 	fmt.Printf("Unique results: %d\n", len(stats.UniqueResults))
 	if len(stats.UniqueResults) > 0 {
 		fmt.Printf("Average results per unique entry: %.2f\n", float64(stats.TotalResults)/float64(len(stats.UniqueResults)))

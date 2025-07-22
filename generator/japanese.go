@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,19 +10,14 @@ import (
 	"strconv"
 	"unicode"
 
+	"github.com/invpt/tanoko/generator/encode"
 	"github.com/invpt/tanoko/generator/jmdict"
 )
 
 func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) error {
-	if err := writeKanjidicKanji(kj, outputDir); err != nil {
-		return fmt.Errorf("failed to write kanjidic kanji: %w", err)
-	}
+	idMap := newResultIDMap()
 
-	if err := writeKanjidicMeta(kj, outputDir); err != nil {
-		return fmt.Errorf("failed to write kanjidic meta: %w", err)
-	}
-
-	if err := writeJmdictWords(jm, outputDir); err != nil {
+	if err := writeJmdict(jm, idMap, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict words: %w", err)
 	}
 
@@ -34,157 +30,117 @@ func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) e
 		return fmt.Errorf("failed to write jmdict english index: %w", err)
 	}
 
-	// Build and write native radix trie
-	nativeTrieRoot, err := buildJmdictNativeRadixTrie(jm)
+	nativeTreeRoot, err := buildJmdictNativeRadixTree(jm, idMap)
 	if err != nil {
-		return fmt.Errorf("failed to build jmdict native trie: %w", err)
+		return fmt.Errorf("failed to build jmdict native tree: %w", err)
 	}
 
-	// Print radix tree statistics
-	stats := calculateRadixTreeStats(nativeTrieRoot)
+	stats := calculateRadixTreeStats(nativeTreeRoot)
 	fmt.Println("JMdict Native Radix Tree Statistics:")
 	printRadixTreeStats(stats)
 
-	flattenedNativeTrie, rootOffset, err := flattenTrie(nativeTrieRoot)
+	flattenedNativeTree, rootOffset, err := flattenTree(nativeTreeRoot)
 	if err != nil {
-		return fmt.Errorf("failed to flatten jmdict native trie: %w", err)
+		return fmt.Errorf("failed to flatten jmdict native tree: %w", err)
 	}
 
-	if err := writeJmdictNativeRadixTrie(flattenedNativeTrie, outputDir); err != nil {
-		return fmt.Errorf("failed to write jmdict native trie: %w", err)
+	if err := writeJmdictNativeRadixTree(flattenedNativeTree, outputDir); err != nil {
+		return fmt.Errorf("failed to write jmdict native tree: %w", err)
 	}
 
-	if err := writeJmdictNativeRadixTrieMetadata(int(rootOffset), outputDir); err != nil {
-		return fmt.Errorf("failed to write jmdict native trie metadata: %w", err)
-	}
-
-	if err := writeJmdictNativeRadixTrieIdMap(jm, outputDir); err != nil {
-		return fmt.Errorf("failed to write jmdict native trie id map: %w", err)
+	if err := writeJmdictNativeRadixTreeMetadata(int(rootOffset), outputDir); err != nil {
+		return fmt.Errorf("failed to write jmdict native tree metadata: %w", err)
 	}
 
 	return nil
 }
 
-func writeKanjidicKanji(kj jmdict.Kanjidic2, outputDir string) error {
-	file, err := os.Create(filepath.Join(outputDir, "kanjidic-kanji.dsv"))
+func writeJmdict(jm jmdict.JMdict, idMap *ResultIDMap, outputDir string) (err error) {
+	file, err := os.Create(filepath.Join(outputDir, "jmdict.bin"))
 	if err != nil {
-		return err
+		return
 	}
 	defer file.Close()
 
-	for _, character := range kj.Characters {
-		data, err := json.Marshal(character)
-		if err != nil {
-			return err
-		}
-
-		if _, err := file.WriteString(character.Literal); err != nil {
-			return err
-		}
-		if _, err := file.WriteString(unitSeparator); err != nil {
-			return err
-		}
-		if _, err := file.Write(data); err != nil {
-			return err
-		}
-		if _, err := file.WriteString(recordSeparator); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func writeKanjidicMeta(kj jmdict.Kanjidic2, outputDir string) error {
-	meta := struct {
-		jmdict.Kanjidic2DictionaryMetadata
-	}{
-		Kanjidic2DictionaryMetadata: kj.Kanjidic2DictionaryMetadata,
-	}
-
-	data, err := json.Marshal(meta)
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(filepath.Join(outputDir, "kanjidic-meta.json"), data, 0644)
-}
-
-func writeJmdictWords(jm jmdict.JMdict, outputDir string) error {
-	file, err := os.Create(filepath.Join(outputDir, "jmdict-words.dsv"))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+	s := encode.NewStream(file)
+	defer func() { err = errors.Join(err, s.Flush()) }()
 
 	for _, word := range jm.Words {
-		data, err := json.Marshal(word)
+		var b *encode.Buffer
+		b, err = s.Append()
 		if err != nil {
-			return err
+			return
 		}
 
-		if _, err := file.WriteString(word.ID); err != nil {
-			return err
+		encode.Uint(b, idMap.GetID(word.ID))
+
+		encode.String(b, word.ID)
+
+		for _, k := range encode.Array(b, word.Kanji) {
+			encode.String(b, k.Text)
+			encode.Bool(b, k.Common)
+			tags := encode.Array(b, k.Tags)
+			for _, tag := range tags {
+				encode.String(b, string(tag))
+			}
 		}
-		if _, err := file.WriteString(unitSeparator); err != nil {
-			return err
+
+		for _, k := range encode.Array(b, word.Kana) {
+			encode.String(b, k.Text)
+			encode.Bool(b, k.Common)
+			for _, tag := range encode.Array(b, k.Tags) {
+				encode.String(b, string(tag))
+			}
+			for _, applies := range encode.Array(b, k.AppliesToKanji) {
+				encode.String(b, applies)
+			}
 		}
-		if _, err := file.Write(data); err != nil {
-			return err
-		}
-		if _, err := file.WriteString(recordSeparator); err != nil {
-			return err
+
+		for _, sense := range encode.Array(b, word.Sense) {
+			for _, p := range encode.Array(b, sense.PartOfSpeech) {
+				encode.String(b, string(p))
+			}
+
+			for _, applies := range encode.Array(b, sense.AppliesToKanji) {
+				encode.String(b, applies)
+			}
+
+			for _, applies := range encode.Array(b, sense.AppliesToKana) {
+				encode.String(b, applies)
+			}
+
+			for _, gloss := range encode.Array(b, sense.Gloss) {
+				encode.String(b, gloss.Text)
+			}
 		}
 	}
 
-	return nil
+	return
 }
 
-func buildJmdictNativeRadixTrie(jm jmdict.JMdict) (*RadixNode, error) {
+func buildJmdictNativeRadixTree(jm jmdict.JMdict, idMap *ResultIDMap) (*RadixNode, error) {
 	root := newRadixNode()
-	idMap := newResultIDMap()
 
 	for _, word := range jm.Words {
 		entryID := idMap.GetID(word.ID)
 
-		// Process kanji readings
 		for _, kanji := range word.Kanji {
 			insertIntoRadixTree(root, kanji.Text, entryID)
 		}
 
-		// Process kana readings
 		for _, kana := range word.Kana {
 			insertIntoRadixTree(root, kana.Text, entryID)
 		}
 	}
+
 	return root, nil
 }
 
-func writeJmdictNativeRadixTrie(flattenedTrie []byte, outputDir string) error {
-	return os.WriteFile(filepath.Join(outputDir, "jmdict-native-trie.bin"), flattenedTrie, 0644)
+func writeJmdictNativeRadixTree(flattenedTree []byte, outputDir string) error {
+	return os.WriteFile(filepath.Join(outputDir, "jmdict-native.bin"), flattenedTree, 0644)
 }
 
-func writeJmdictNativeRadixTrieIdMap(jm jmdict.JMdict, outputDir string) error {
-	// Create a mapping from numeric ID to word ID string
-	mapping := make(map[string]string)
-	idMap := newResultIDMap()
-
-	for _, word := range jm.Words {
-		numericID := idMap.GetID(word.ID)
-		mapping[fmt.Sprintf("%d", numericID)] = word.ID
-	}
-
-	file, err := os.Create(filepath.Join(outputDir, "jmdict-native-trie-id-map.json"))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	return encoder.Encode(mapping)
-}
-
-func writeJmdictNativeRadixTrieMetadata(rootOffset int, outputDir string) error {
+func writeJmdictNativeRadixTreeMetadata(rootOffset int, outputDir string) error {
 	metadata := struct {
 		RootOffset int `json:"rootOffset"`
 	}{
@@ -196,7 +152,7 @@ func writeJmdictNativeRadixTrieMetadata(rootOffset int, outputDir string) error 
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(outputDir, "jmdict-native-trie-metadata.json"), data, 0644)
+	return os.WriteFile(filepath.Join(outputDir, "jmdict-native.meta.json"), data, 0644)
 }
 
 func writeJmdictMeta(jm jmdict.JMdict, outputDir string) error {
@@ -300,80 +256,8 @@ func getSortKey(item IndexItem, c, l, p float64) float64 {
 	return c*uncommon + l*length + p*priority
 }
 
-func buildJmdictNativeIndex(jm jmdict.JMdict) []IndexItem {
-	const (
-		c = 10.0  // common weight
-		l = 2.0   // length weight
-		p = 1.0   // priority weight
-		k = 0.001 // kana weight
-	)
-
-	var index []IndexItem
-	alreadyAdded := make(map[string]bool)
-
-	add := func(item IndexItem) {
-		if !alreadyAdded[item.Text] {
-			alreadyAdded[item.Text] = true
-			index = append(index, item)
-		}
-	}
-
-	for _, word := range jm.Words {
-		for _, kanji := range word.Kanji {
-			add(IndexItem{
-				ID:        word.ID,
-				Text:      kanji.Text,
-				Common:    kanji.Common,
-				Priority:  0,
-				KanaCount: countKana(kanji.Text),
-			})
-		}
-
-		for _, kana := range word.Kana {
-			add(IndexItem{
-				ID:        word.ID,
-				Text:      kana.Text,
-				Common:    kana.Common,
-				Priority:  0,
-				KanaCount: 0,
-			})
-		}
-
-		alreadyAdded = make(map[string]bool)
-	}
-
-	sort.Slice(index, func(i, j int) bool {
-		a, b := index[i], index[j]
-
-		sortKeyA := getJmdictNativeSortKey(a, c, l, p, k)
-		sortKeyB := getJmdictNativeSortKey(b, c, l, p, k)
-
-		if sortKeyA == sortKeyB {
-			idA, _ := strconv.Atoi(a.ID)
-			idB, _ := strconv.Atoi(b.ID)
-			return idA < idB
-		}
-
-		return sortKeyA < sortKeyB
-	})
-
-	return index
-}
-
-func getJmdictNativeSortKey(item IndexItem, c, l, p, k float64) float64 {
-	uncommon := 0.0
-	if !item.Common {
-		uncommon = 1.0
-	}
-	length := float64(len(item.Text))
-	priority := item.Priority
-	kanaCount := float64(item.KanaCount)
-
-	return c*uncommon + l*length + p*priority - k*kanaCount
-}
-
 func writeJmdictEnglishIndex(index []IndexItem, outputDir string) error {
-	file, err := os.Create(filepath.Join(outputDir, "jmdict-index-english.dsv"))
+	file, err := os.Create(filepath.Join(outputDir, "jmdict-english.dsv"))
 	if err != nil {
 		return err
 	}
@@ -383,13 +267,13 @@ func writeJmdictEnglishIndex(index []IndexItem, outputDir string) error {
 		if _, err := file.WriteString(item.Text); err != nil {
 			return err
 		}
-		if _, err := file.WriteString(unitSeparator); err != nil {
+		if _, err := file.WriteString(sep1); err != nil {
 			return err
 		}
 		if _, err := file.WriteString(item.ID); err != nil {
 			return err
 		}
-		if _, err := file.WriteString(recordSeparator); err != nil {
+		if _, err := file.WriteString(sep2); err != nil {
 			return err
 		}
 	}

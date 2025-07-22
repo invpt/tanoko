@@ -70,10 +70,10 @@ func Parse(r io.Reader) (ce CEDICT, err error) {
 type CEDICT []Entry
 
 type Entry struct {
-	Traditional string   `json:"traditional"`
-	Simplified  string   `json:"simplified"`
-	Pinyin      []string `json:"pinyin"`
-	Senses      []Gloss  `json:"senses"`
+	Traditional string
+	Simplified  string
+	Pinyin      []string
+	Senses      []Gloss
 }
 
-type Gloss []string
+type Gloss = []string

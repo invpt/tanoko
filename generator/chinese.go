@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,10 +12,10 @@ import (
 	"unicode"
 
 	"github.com/invpt/tanoko/generator/cedict"
+	"github.com/invpt/tanoko/generator/encode"
 )
 
 func generateChinese(ce cedict.CEDICT, outputDir string) error {
-	// Create ID map for Chinese entries
 	idMap := newResultIDMap()
 
 	if err := writeCedictWords(ce, outputDir, idMap); err != nil {
@@ -26,73 +27,67 @@ func generateChinese(ce cedict.CEDICT, outputDir string) error {
 		return fmt.Errorf("failed to write cedict english index: %w", err)
 	}
 
-	pinyinTrieRoot, err := buildPinyinTrie(ce, idMap)
+	pinyinTreeRoot, err := buildPinyinTree(ce, idMap)
 	if err != nil {
-		return fmt.Errorf("failed to build pinyin trie: %w", err)
+		return fmt.Errorf("failed to build pinyin tree: %w", err)
 	}
 
 	// Print radix tree statistics
-	stats := calculateRadixTreeStats(pinyinTrieRoot)
+	stats := calculateRadixTreeStats(pinyinTreeRoot)
 	fmt.Println("CEDICT Native Radix Tree Statistics:")
 	printRadixTreeStats(stats)
 
-	flattenedPinyinTrie, rootOffset, err := flattenTrie(pinyinTrieRoot)
+	flattenedPinyinTree, rootOffset, err := flattenTree(pinyinTreeRoot)
 	if err != nil {
-		return fmt.Errorf("failed to flatten pinyin trie: %w", err)
+		return fmt.Errorf("failed to flatten pinyin tree: %w", err)
 	}
 
-	if err := writePinyinTrie(flattenedPinyinTrie, outputDir); err != nil {
-		return fmt.Errorf("failed to write pinyin trie: %w", err)
+	if err := writePinyinTree(flattenedPinyinTree, outputDir); err != nil {
+		return fmt.Errorf("failed to write pinyin tree: %w", err)
 	}
 
-	if err := writePinyinTrieMetadata(rootOffset, outputDir); err != nil {
-		return fmt.Errorf("failed to write pinyin trie metadata: %w", err)
-	}
-
-	if err := writePinyinTrieIdMap(idMap, outputDir); err != nil {
-		return fmt.Errorf("failed to write pinyin trie id map: %w", err)
+	if err := writePinyinTreeMetadata(rootOffset, outputDir); err != nil {
+		return fmt.Errorf("failed to write pinyin tree metadata: %w", err)
 	}
 
 	return nil
 }
 
-func writeCedictWords(ce cedict.CEDICT, outputDir string, idMap *ResultIDMap) error {
-	file, err := os.Create(filepath.Join(outputDir, "cedict-words.dsv"))
+func writeCedictWords(ce cedict.CEDICT, outputDir string, idMap *ResultIDMap) (err error) {
+	file, err := os.Create(filepath.Join(outputDir, "cedict.bin"))
 	if err != nil {
-		return err
+		return
 	}
 	defer file.Close()
 
+	s := encode.NewStream(file)
+	defer func() { err = errors.Join(err, s.Flush()) }()
+
 	for _, word := range ce {
-		// Create a copy of the word with indexId field
-		wordWithIndex := struct {
-			cedict.Entry
-			IndexId uint32 `json:"indexId"`
-		}{
-			Entry:   word,
-			IndexId: idMap.GetID(word.Traditional),
-		}
-
-		data, err := json.Marshal(wordWithIndex)
+		var b *encode.Buffer
+		b, err = s.Append()
 		if err != nil {
-			return err
+			return
 		}
 
-		if _, err := file.WriteString(word.Traditional); err != nil {
-			return err
+		encode.Uint(b, idMap.GetID(word.Traditional))
+
+		encode.String(b, word.Traditional)
+
+		encode.String(b, word.Simplified)
+
+		for _, pinyin := range encode.Array(b, word.Pinyin) {
+			encode.String(b, pinyin)
 		}
-		if _, err := file.WriteString(unitSeparator); err != nil {
-			return err
-		}
-		if _, err := file.Write(data); err != nil {
-			return err
-		}
-		if _, err := file.WriteString(recordSeparator); err != nil {
-			return err
+
+		for _, glosses := range encode.Array(b, word.Senses) {
+			for _, gloss := range encode.Array(b, glosses) {
+				encode.String(b, gloss)
+			}
 		}
 	}
 
-	return nil
+	return
 }
 
 func buildCedictEnglishIndex(ce cedict.CEDICT) []IndexItem {
@@ -231,13 +226,13 @@ func writeCedictEnglishIndex(index []IndexItem, outputDir string) error {
 		if _, err := file.WriteString(item.Text); err != nil {
 			return err
 		}
-		if _, err := file.WriteString(unitSeparator); err != nil {
+		if _, err := file.WriteString(sep1); err != nil {
 			return err
 		}
 		if _, err := file.WriteString(item.ID); err != nil {
 			return err
 		}
-		if _, err := file.WriteString(recordSeparator); err != nil {
+		if _, err := file.WriteString(sep2); err != nil {
 			return err
 		}
 	}
@@ -245,8 +240,8 @@ func writeCedictEnglishIndex(index []IndexItem, outputDir string) error {
 	return nil
 }
 
-// buildPinyinTrie constructs a radix tree from CEDICT pinyin entries.
-func buildPinyinTrie(ce cedict.CEDICT, idMap *ResultIDMap) (*RadixNode, error) {
+// buildPinyinTree constructs a radix tree from CEDICT pinyin entrees.
+func buildPinyinTree(ce cedict.CEDICT, idMap *ResultIDMap) (*RadixNode, error) {
 	root := newRadixNode()
 
 	for _, entry := range ce {
@@ -267,9 +262,9 @@ func buildPinyinTrie(ce cedict.CEDICT, idMap *ResultIDMap) (*RadixNode, error) {
 	return root, nil
 }
 
-// writePinyinTrie writes the flattened radix tree data to a binary file.
-func writePinyinTrie(data []byte, outputDir string) error {
-	filePath := filepath.Join(outputDir, "pinyin-trie.bin")
+// writePinyinTree writes the flattened radix tree data to a binary file.
+func writePinyinTree(data []byte, outputDir string) error {
+	filePath := filepath.Join(outputDir, "pinyin-tree.bin")
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create pinyin radix tree file: %w", err)
@@ -283,35 +278,12 @@ func writePinyinTrie(data []byte, outputDir string) error {
 	return nil
 }
 
-// writePinyinTrieIdMap writes the ID to Traditional Chinese mapping as JSON
-func writePinyinTrieIdMap(idMap *ResultIDMap, outputDir string) error {
-	filePath := filepath.Join(outputDir, "pinyin-trie-idmap.json")
+// writePinyinTreeMetadata writes the root offset and other metadata as JSON
+func writePinyinTreeMetadata(rootOffset uint32, outputDir string) error {
+	filePath := filepath.Join(outputDir, "pinyin-tree-metadata.json")
 	file, err := os.Create(filePath)
 	if err != nil {
-		return fmt.Errorf("failed to create pinyin trie id map file: %w", err)
-	}
-	defer file.Close()
-
-	// Create reverse mapping: ID -> Traditional
-	reverseMap := make(map[uint32]string)
-	for traditional, id := range idMap.mapping {
-		reverseMap[id] = traditional
-	}
-
-	encoder := json.NewEncoder(file)
-	if err := encoder.Encode(reverseMap); err != nil {
-		return fmt.Errorf("failed to encode id map: %w", err)
-	}
-
-	return nil
-}
-
-// writePinyinTrieMetadata writes the root offset and other metadata as JSON
-func writePinyinTrieMetadata(rootOffset uint32, outputDir string) error {
-	filePath := filepath.Join(outputDir, "pinyin-trie-metadata.json")
-	file, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to create pinyin trie metadata file: %w", err)
+		return fmt.Errorf("failed to create pinyin tree metadata file: %w", err)
 	}
 	defer file.Close()
 

@@ -1,10 +1,8 @@
 package index
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io"
 	"slices"
 	"sort"
 
@@ -55,9 +53,7 @@ func findCommonWords(entries map[string][]uint32) (commonWords []string) {
 		return counts[i].count > counts[j].count
 	})
 
-	fmt.Println("Common words:")
-	for i := 0; i < COMMON_WORD_COUNT; i++ {
-		fmt.Println("  ", counts[i].token, counts[i].count)
+	for i := range COMMON_WORD_COUNT {
 		commonWords = append(commonWords, counts[i].token)
 	}
 
@@ -89,142 +85,118 @@ type Index struct {
 	maxID       uint32
 }
 
-func (idx *Index) Export(outputDir, prefix string) error {
-	metaPath := filepath.Join(outputDir, prefix+"-english-index-meta.json")
-	indexTablePath := filepath.Join(outputDir, prefix+"-english-index-toc.bin")
-	stringTablePath := filepath.Join(outputDir, prefix+"-english-index.bin")
-	bitflagsPath := filepath.Join(outputDir, prefix+"-english-index-common.bin")
-
-	if err := idx.writeMetadataFile(metaPath); err != nil {
-		return fmt.Errorf("failed to write metadata file: %w", err)
+func (idx *Index) PrintStats(name string) {
+	totalEntries := len(idx.entries)
+	totalPostings := 0
+	for _, postings := range idx.entries {
+		totalPostings += len(postings)
 	}
+	fmt.Printf("%s: %d terms, %d postings, %d common words\n", name, totalEntries, totalPostings, len(idx.commonWords))
+}
 
-	offsets, err := idx.writeStringTableFile(stringTablePath)
+func (idx *Index) Export(w io.Writer) (err error) {
+	s := encode.NewStream(w)
+
+	var b *encode.Buffer
+
+	if b, err = s.Append(); err != nil {
+		return
+	}
+	offsets, err := idx.exportEntries(b)
 	if err != nil {
-		return fmt.Errorf("failed to write string table file: %w", err)
+		return fmt.Errorf("failed to build entries: %w", err)
 	}
 
-	if err := idx.writeWordIndexFile(offsets, indexTablePath); err != nil {
-		return fmt.Errorf("failed to write word index file: %w", err)
+	if b, err = s.Append(); err != nil {
+		return
+	}
+	if err := idx.exportEntryIndex(b, offsets); err != nil {
+		return fmt.Errorf("failed to build: %w", err)
 	}
 
-	if err := idx.writeBitflagsFile(bitflagsPath); err != nil {
-		return fmt.Errorf("failed to write bitflags file: %w", err)
+	if b, err = s.Append(); err != nil {
+		return
+	}
+	if err := idx.exportCommonWords(b); err != nil {
+		return fmt.Errorf("failed to build common words: %w", err)
 	}
 
 	return nil
 }
 
-func (idx *Index) writeMetadataFile(filepath string) error {
-	metadata := struct {
-		CommonWords []string `json:"commonWords"`
-	}{
-		CommonWords: idx.commonWords,
+func (idx *Index) exportCommonWords(b *encode.Buffer) (err error) {
+	wordToBit := make(map[string]uint16, len(idx.commonWords))
+	for i, word := range idx.commonWords {
+		wordToBit[word] = uint16(1 << i)
 	}
 
-	file, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+	table := make([]uint16, idx.maxID+1)
 
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(metadata)
+	for word, entries := range idx.entries {
+		if bitMask, isCommon := wordToBit[word]; isCommon {
+			for _, entryID := range entries {
+				if int(entryID) < len(table) {
+					table[entryID] |= bitMask
+				}
+			}
+		}
+	}
+
+	for _, word := range encode.Array(b, idx.commonWords) {
+		encode.String(b, word)
+	}
+
+	for _, entry := range encode.Array(b, table) {
+		encode.Uint16(b, entry)
+	}
+
+	return nil
 }
 
-func (idx *Index) writeWordIndexFile(offsets map[string]uint32, filepath string) error {
+func (idx *Index) exportEntryIndex(b *encode.Buffer, offsets map[string]uint32) error {
 	var sortedWords []string
 	for word := range idx.entries {
 		sortedWords = append(sortedWords, word)
 	}
 	sort.Strings(sortedWords)
 
-	buffer := encode.NewBuffer()
-
 	for _, word := range sortedWords {
 		if len(word) > 255 {
 			return fmt.Errorf("word '%s' is too long (%d chars, max 255)", word, len(word))
 		}
 
-		encode.Uint32(buffer, offsets[word]|uint32(len(word))<<24)
+		if offsets[word] > 0x7FFFFFFF {
+			return fmt.Errorf("offset for word '%s' is too large", word)
+		}
+
+		encode.Uint32(b, offsets[word]|uint32(len(word))<<24)
 	}
 
-	// Write to file
-	file, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = file.Write(buffer.Finish())
-	return err
+	return nil
 }
 
-func (idx *Index) writeStringTableFile(filepath string) (offsets map[string]uint32, err error) {
+func (idx *Index) exportEntries(b *encode.Buffer) (map[string]uint32, error) {
 	var sortedWords []string
 	for word := range idx.entries {
 		sortedWords = append(sortedWords, word)
 	}
 	slices.Sort(sortedWords)
 
-	buffer := encode.NewBuffer()
-
-	offsets = make(map[string]uint32, len(idx.entries))
+	offsets := make(map[string]uint32, len(idx.entries))
 	for _, word := range sortedWords {
-		offsets[word] = uint32(buffer.Offset())
+		offsets[word] = uint32(b.Offset())
 
-		encode.Raw(buffer, word)
+		encode.Raw(b, word)
 
 		entries := idx.entries[word]
 		if slices.Contains(idx.commonWords, word) && len(entries) > COMMON_POSTING_LIST_SIZE {
 			entries = entries[:COMMON_POSTING_LIST_SIZE]
 		}
 
-		for _, entryID := range encode.Array(buffer, entries) {
-			encode.Uvarint(buffer, entryID)
+		for _, entryID := range encode.Array(b, entries) {
+			encode.Uvarint(b, entryID)
 		}
 	}
 
-	file, err := os.Create(filepath)
-	if err != nil {
-		return
-	}
-	defer file.Close()
-
-	_, err = file.Write(buffer.Finish())
-	return
-}
-
-func (idx *Index) writeBitflagsFile(filepath string) error {
-	wordToBit := make(map[string]uint16)
-	for i, word := range idx.commonWords {
-		wordToBit[word] = uint16(1 << i)
-	}
-
-	bitflags := make([]uint16, idx.maxID+1)
-
-	for word, entries := range idx.entries {
-		if bitMask, isCommon := wordToBit[word]; isCommon {
-			for _, entryID := range entries {
-				if int(entryID) < len(bitflags) {
-					bitflags[entryID] |= bitMask
-				}
-			}
-		}
-	}
-
-	buffer := encode.NewBuffer()
-	for _, flags := range bitflags {
-		encode.Uint16(buffer, flags)
-	}
-
-	file, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = file.Write(buffer.Finish())
-	return err
+	return offsets, nil
 }

@@ -1,6 +1,7 @@
 package index
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/invpt/tanoko/generator/encode"
 	"github.com/invpt/tanoko/generator/english"
+	"github.com/invpt/tanoko/generator/util"
 )
 
 const COMMON_WORD_COUNT = 16
@@ -25,18 +27,15 @@ func NewBuilder() *Builder {
 func (b *Builder) Add(text string, id uint32) {
 	b.maxID = max(b.maxID, id)
 	for _, token := range english.Tokenize(text) {
-		b.entries[token] = append(b.entries[token], id)
+		b.entries[token] = util.AppendUniqueSorted(b.entries[token], id)
 	}
 }
 
 func (b *Builder) Build() *Index {
-	for token, ids := range b.entries {
-		b.entries[token] = deduplicateAndSort(ids)
-	}
-
 	return &Index{
 		commonWords: findCommonWords(b.entries),
 		entries:     b.entries,
+		maxID:       b.maxID,
 	}
 }
 
@@ -60,25 +59,6 @@ func findCommonWords(entries map[string][]uint32) (commonWords []string) {
 	return
 }
 
-func deduplicateAndSort(ids []uint32) []uint32 {
-	if len(ids) == 0 {
-		return ids
-	}
-
-	sort.Slice(ids, func(i, j int) bool {
-		return ids[i] < ids[j]
-	})
-
-	writeIndex := 1
-	for i := 1; i < len(ids); i++ {
-		if ids[i] != ids[i-1] {
-			ids[writeIndex] = ids[i]
-			writeIndex++
-		}
-	}
-	return ids[:writeIndex]
-}
-
 type Index struct {
 	commonWords []string
 	entries     map[string][]uint32
@@ -96,6 +76,7 @@ func (idx *Index) PrintStats(name string) {
 
 func (idx *Index) Export(w io.Writer) (err error) {
 	s := encode.NewStream(w)
+	defer func() { err = errors.Join(err, s.Flush()) }()
 
 	var b *encode.Buffer
 
@@ -117,10 +98,24 @@ func (idx *Index) Export(w io.Writer) (err error) {
 	if b, err = s.Append(); err != nil {
 		return
 	}
+	if err := idx.exportCommonWordsList(b); err != nil {
+		return fmt.Errorf("failed to build common words: %w", err)
+	}
+
+	if b, err = s.Append(); err != nil {
+		return
+	}
 	if err := idx.exportCommonWords(b); err != nil {
 		return fmt.Errorf("failed to build common words: %w", err)
 	}
 
+	return nil
+}
+
+func (idx *Index) exportCommonWordsList(b *encode.Buffer) error {
+	for _, word := range encode.Array(b, idx.commonWords) {
+		encode.String(b, word)
+	}
 	return nil
 }
 
@@ -142,11 +137,7 @@ func (idx *Index) exportCommonWords(b *encode.Buffer) (err error) {
 		}
 	}
 
-	for _, word := range encode.Array(b, idx.commonWords) {
-		encode.String(b, word)
-	}
-
-	for _, entry := range encode.Array(b, table) {
+	for _, entry := range table {
 		encode.Uint16(b, entry)
 	}
 

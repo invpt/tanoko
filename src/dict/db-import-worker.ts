@@ -1,8 +1,9 @@
 import { DictDbSchema, openDictDb } from "./db";
-import jmdictWordsUrl from "../assets/gen/jmdict-words.dsv?url";
-import kanjidicKanjiUrl from "../assets/gen/kanjidic-kanji.dsv?url";
-import cedictWordsUrl from "../assets/gen/cedict-words.dsv?url";
 import { IDBPDatabase } from "idb";
+import { Decoder, StreamDecoder } from "./decode";
+
+import jmdictUrl from "../assets/gen/jmdict.bin?url";
+import cedictUrl from "../assets/gen/cedict.bin?url";
 
 (async () => {
   try {
@@ -19,50 +20,70 @@ async function runImport(progressCallback?: (bytesDownloaded: number) => void) {
   const db = await openDictDb();
 
   let jmdictBytes = 0;
-  let kanjidicBytes = 0;
   let cedictBytes = 0;
 
-  const reportProgress = () =>
-    progressCallback?.(jmdictBytes + kanjidicBytes + cedictBytes);
+  const reportProgress = () => progressCallback?.(jmdictBytes + cedictBytes);
 
   await Promise.all([
-    importDsv(db, "jmdict", jmdictWordsUrl, (bytes) => {
-      jmdictBytes = bytes;
-      reportProgress();
-    }),
-    importDsv(db, "kanjidic", kanjidicKanjiUrl, (bytes) => {
-      kanjidicBytes = bytes;
-      reportProgress();
-    }),
-    importDsv(db, "cedict", cedictWordsUrl, (bytes) => {
-      cedictBytes = bytes;
-      reportProgress();
-    }),
+    importDict(
+      db,
+      "jmdict",
+      jmdictUrl,
+      (d) => d.string(),
+      (bytes) => {
+        jmdictBytes = bytes;
+        reportProgress();
+      },
+    ),
+    importDict(
+      db,
+      "cedict",
+      cedictUrl,
+      (d) => {
+        const traditional = d.string();
+        const simplified = d.string();
+        return traditional === simplified
+          ? traditional
+          : `${traditional}|${simplified}`;
+      },
+      (bytes) => {
+        cedictBytes = bytes;
+        reportProgress();
+      },
+    ),
   ]);
 }
 
-async function importDsv(
+async function importDict(
   db: IDBPDatabase<DictDbSchema>,
-  storeName: "jmdict" | "kanjidic" | "cedict",
+  storeName: "jmdict" | "cedict",
   src: string,
+  decodeRef: (d: Decoder) => string,
   progressCallback: (downloaded: number) => void,
 ): Promise<void> {
   if ((await db.get("meta", storeName)) === src) {
     return;
   }
 
-  let totalBytes = 0;
-  const batchSize = 1000;
-  let batch: { id: string; value: string }[] = [];
+  const resp = await fetch(src);
+  if (resp.body == null) {
+    throw new Error("Response must have a body");
+  }
 
-  const processBatch = async (records: { id: string; value: string }[]) => {
+  let bytesDownloaded = 0;
+
+  const processBatch = async (
+    records: { id: number; ref: string; data: Uint8Array }[],
+  ) => {
     if (records.length === 0) return;
+
+    progressCallback(bytesDownloaded);
 
     const txn = db.transaction(storeName, "readwrite");
     const store = txn.objectStore(storeName);
 
     for (const record of records) {
-      store.put(record.value, record.id);
+      store.put({ ref: record.ref, data: record.data }, record.id);
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -72,11 +93,19 @@ async function importDsv(
     });
   };
 
-  for await (const record of parseDsvStream(src, {
-    progressCallback: (bytes) => progressCallback((totalBytes = bytes)),
-    progressInterval: 10240,
-  })) {
-    batch.push(record);
+  const batchSize = 1000;
+  let batch: { id: number; ref: string; data: Uint8Array }[] = [];
+
+  const stream = new StreamDecoder(resp.body);
+  for await (const bytes of stream) {
+    bytesDownloaded += bytes.length;
+
+    const d = new Decoder(bytes);
+    batch.push({
+      id: d.uvarint(),
+      data: d.rest(),
+      ref: decodeRef(d),
+    });
 
     if (batch.length >= batchSize) {
       await processBatch(batch);
@@ -87,71 +116,4 @@ async function importDsv(
   await processBatch(batch);
 
   await db.put("meta", src, storeName);
-}
-
-interface DsvRecord {
-  id: string;
-  value: string;
-}
-
-interface DsvParseOptions {
-  progressCallback?: (bytesLoaded: number) => void;
-  progressInterval?: number;
-}
-
-async function* parseDsvStream(
-  src: string,
-  options: DsvParseOptions = {},
-): AsyncGenerator<DsvRecord, void, void> {
-  const { progressCallback, progressInterval = 10000 } = options;
-
-  progressCallback?.(0);
-
-  const resp = await fetch(src);
-  const reader = resp.body?.getReader();
-  if (reader == null) {
-    throw new Error("Response must have a body");
-  }
-
-  const decoder = new TextDecoder("utf-8");
-
-  let bytesDownloaded = 0;
-  let lastStatusUpdate = 0;
-  let marginal = "";
-
-  try {
-    while (true) {
-      const result = await reader.read();
-      if (result.done) {
-        break;
-      }
-
-      const buf = result.value;
-      bytesDownloaded += buf.length;
-
-      if (bytesDownloaded - lastStatusUpdate >= progressInterval) {
-        progressCallback?.((lastStatusUpdate = bytesDownloaded));
-      }
-
-      let i = 0;
-      while (true) {
-        const recordEnd = buf.indexOf(0x1e, i);
-        if (recordEnd < 0) {
-          marginal = decoder.decode(buf.subarray(i), { stream: true });
-          break;
-        }
-
-        const text = marginal + decoder.decode(buf.subarray(i, recordEnd));
-        i = recordEnd + 1;
-        marginal = "";
-
-        const sep = text.indexOf("\x1F");
-        yield { id: text.substring(0, sep), value: text.substring(sep + 1) };
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  progressCallback?.(bytesDownloaded);
 }

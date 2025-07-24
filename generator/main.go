@@ -7,13 +7,6 @@ import (
 	"path/filepath"
 )
 
-const (
-	sep1 = "\x1F"
-	sep2 = "\x1E"
-	sep3 = "\x1D"
-	sep4 = "\x1C"
-)
-
 func main() {
 	var (
 		clearCacheFlag = flag.Bool("clear-cache", false, "Clear the download cache before running")

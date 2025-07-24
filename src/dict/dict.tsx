@@ -44,15 +44,14 @@ import ImportWorker from "./db-import-worker?worker";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import { IDBPDatabase } from "idb";
 import { DictDbSchema, openDictDb } from "./db";
+import { RadixTreeIndex } from "./radix";
 
-import jmdictIndexEnglishUrl from "../assets/gen/jmdict-index-english.dsv?url";
-import jmdictNativeTreeUrl from "../assets/gen/jmdict-native-tree.bin?url";
-import jmdictNativeTreeIdMapUrl from "../assets/gen/jmdict-native-tree-id-map.json?url";
-import jmdictNativeTreeMetadataUrl from "../assets/gen/jmdict-native-tree-metadata.json?url";
-import cedictIndexEnglishUrl from "../assets/gen/cedict-index-english.dsv?url";
-import pinyinTreeUrl from "../assets/gen/pinyin-tree.bin?url";
-import pinyinTreeIdMapUrl from "../assets/gen/pinyin-tree-idmap.json?url";
-import pinyinTreeMetadataUrl from "../assets/gen/pinyin-tree-metadata.json?url";
+import cedictEnglishUrl from "../assets/gen/cedict-english.bin?url";
+import cedictNativeUrl from "../assets/gen/cedict-native.bin?url";
+import jmdictEnglishUrl from "../assets/gen/jmdict-english.bin?url";
+import jmdictNativeUrl from "../assets/gen/jmdict-native.bin?url";
+import { InvertedIndex } from "./inverted-index";
+import { Decoder } from "./decode";
 
 let status: DictStatus = { status: "loading", bytes: 0 };
 
@@ -71,6 +70,7 @@ const load = () => {
         statusListeners.forEach((listener) => listener(status));
       })
       .catch((error) => {
+        console.error("Failed to load dictionary:", error);
         status = { status: "failure", error };
         statusListeners.forEach((listener) => listener(status));
       });
@@ -103,27 +103,23 @@ export const dict = {
     const dict = await load();
     return await dict.loadWord(id);
   },
-  async loadKanji(literal: string) {
-    const dict = await load();
-    return await dict.loadKanji(literal);
-  },
 };
 
 class Dict {
   private db: IDBPDatabase<DictDbSchema>;
-  private jmdictEnglishIndex: Index;
-  private jmdictNativeRadixIndex: RadixTreeIndex;
-  private cedictEnglishIndex: Index;
-  private pinyinRadixIndex: RadixTreeIndex;
+  private cedictEnglish: InvertedIndex;
+  private cedictNative: RadixTreeIndex;
+  private jmdictEnglish: InvertedIndex;
+  private jmdictNative: RadixTreeIndex;
 
   static async load(progress: (bytes: number) => void) {
     const [
       ,
       db,
-      jmdictEnglishIndex,
-      jmdictNativeRadixIndex,
       cedictEnglishIndex,
       pinyinRadixIndex,
+      jmdictEnglishIndex,
+      jmdictNativeRadixIndex,
     ] = await Promise.all([
       new Promise((resolve, reject) => {
         const importWorker = new ImportWorker();
@@ -146,66 +142,58 @@ class Dict {
         };
       }),
       openDictDb(),
-      Index.load(jmdictIndexEnglishUrl),
-      RadixTreeIndex.load(
-        jmdictNativeTreeUrl,
-        jmdictNativeTreeIdMapUrl,
-        jmdictNativeTreeMetadataUrl,
-      ),
-      Index.load(cedictIndexEnglishUrl),
-      RadixTreeIndex.load(
-        pinyinTreeUrl,
-        pinyinTreeIdMapUrl,
-        pinyinTreeMetadataUrl,
-      ),
+      InvertedIndex.load(cedictEnglishUrl),
+      RadixTreeIndex.load(cedictNativeUrl),
+      InvertedIndex.load(jmdictEnglishUrl),
+      RadixTreeIndex.load(jmdictNativeUrl),
     ]);
     return new Dict(
       db,
-      jmdictEnglishIndex,
-      jmdictNativeRadixIndex,
       cedictEnglishIndex,
       pinyinRadixIndex,
+      jmdictEnglishIndex,
+      jmdictNativeRadixIndex,
     );
   }
 
   private constructor(
     db: IDBPDatabase<DictDbSchema>,
-    jmdictEnglishIndex: Index,
-    jmdictNativeRadixIndex: RadixTreeIndex,
-    cedictEnglishIndex: Index,
+    cedictEnglishIndex: InvertedIndex,
     pinyinRadixIndex: RadixTreeIndex,
+    jmdictEnglishIndex: InvertedIndex,
+    jmdictNativeRadixIndex: RadixTreeIndex,
   ) {
     this.db = db;
-    this.jmdictEnglishIndex = jmdictEnglishIndex;
-    this.jmdictNativeRadixIndex = jmdictNativeRadixIndex;
-    this.cedictEnglishIndex = cedictEnglishIndex;
-    this.pinyinRadixIndex = pinyinRadixIndex;
+    this.cedictEnglish = cedictEnglishIndex;
+    this.cedictNative = pinyinRadixIndex;
+    this.jmdictEnglish = jmdictEnglishIndex;
+    this.jmdictNative = jmdictNativeRadixIndex;
   }
 
   async *search(
     query: string,
     queryType: QueryType,
   ): AsyncGenerator<DictionaryEntry> {
-    let index: Index | RadixTreeIndex;
+    let index: InvertedIndex | RadixTreeIndex;
     let storeName: "jmdict" | "cedict";
 
     switch (queryType) {
       case "japanese-english":
-        index = this.jmdictEnglishIndex;
+        index = this.jmdictEnglish;
         storeName = "jmdict";
         break;
       case "japanese-native":
         // Use radix tree for Japanese native search (kanji + kana)
-        index = this.jmdictNativeRadixIndex;
+        index = this.jmdictNative;
         storeName = "jmdict";
         break;
       case "chinese-english":
-        index = this.cedictEnglishIndex;
+        index = this.cedictEnglish;
         storeName = "cedict";
         break;
       case "chinese-native":
         // Use radix tree for Chinese native search (pinyin + characters)
-        index = this.pinyinRadixIndex;
+        index = this.cedictNative;
         storeName = "cedict";
         break;
       default:
@@ -231,375 +219,110 @@ class Dict {
     }
   }
 
-  async loadJmdictWord(id: string): Promise<JMdictWord | undefined> {
+  async loadJmdictWord(id: number): Promise<JMdictWord | undefined> {
     const word = await this.db.get("jmdict", id);
     if (word !== undefined) {
-      return JSON.parse(word);
+      return parseJmdictWord(word.data);
     } else {
       return undefined;
     }
   }
 
-  async loadCedictWord(id: string): Promise<CedictWord | undefined> {
+  async loadCedictWord(id: number): Promise<CedictWord | undefined> {
     const word = await this.db.get("cedict", id);
     if (word !== undefined) {
-      return JSON.parse(word);
+      return parseCedictWord(word.data);
     } else {
       return undefined;
     }
   }
 
   async loadWord(id: string): Promise<DictionaryEntry | undefined> {
-    let word: DictionaryEntry | undefined = await this.loadJmdictWord(id);
-    if (word === undefined) {
-      word = await this.loadCedictWord(id);
-    }
-    return word;
-  }
-
-  async loadKanji(literal: string): Promise<Kanjidic2Character | undefined> {
-    const kanji = await this.db.get("kanjidic", literal);
-    if (kanji !== undefined) {
-      return JSON.parse(kanji);
-    } else {
-      return undefined;
-    }
+    // TODO: allow searching by ref id
+    return undefined;
   }
 }
 
-class Index {
-  private index: string;
+function parseJmdictWord(data: Uint8Array): JMdictWord {
+  const decoder = new Decoder(data);
 
-  private constructor(index: string) {
-    this.index = index;
-  }
+  // Read word ID (string)
+  const id = decoder.string();
 
-  static async load(from: string) {
-    const resp = await fetch(from);
-    const index = await resp.text();
-    return new Index(index);
-  }
+  // Read kanji array
+  const kanji = Array.from(
+    decoder.iterArray(() => {
+      const text = decoder.string();
+      const common = decoder.uint8() !== 0; // Bool is encoded as uint8
+      const tags = Array.from(decoder.iterArray(() => decoder.string()));
+      return { text, common, tags };
+    }),
+  );
 
-  *search(query: string) {
-    const index = this.index;
+  // Read kana array
+  const kana = Array.from(
+    decoder.iterArray(() => {
+      const text = decoder.string();
+      const common = decoder.uint8() !== 0; // Bool is encoded as uint8
+      const tags = Array.from(decoder.iterArray(() => decoder.string()));
+      const appliesToKanji = Array.from(
+        decoder.iterArray(() => decoder.string()),
+      );
+      return { text, common, tags, appliesToKanji };
+    }),
+  );
 
-    const alreadyYielded = new Set();
+  // Read sense array
+  const sense = Array.from(
+    decoder.iterArray(() => {
+      const partOfSpeech = Array.from(
+        decoder.iterArray(() => decoder.string()),
+      );
+      const appliesToKanji = Array.from(
+        decoder.iterArray(() => decoder.string()),
+      );
+      const appliesToKana = Array.from(
+        decoder.iterArray(() => decoder.string()),
+      );
+      const gloss = Array.from(
+        decoder.iterArray(() => {
+          return { text: decoder.string() };
+        }),
+      );
 
-    let start = 0;
-    while (true) {
-      const i = index.indexOf(query, start);
-      if (i < 0) {
-        break;
-      } else {
-        const unit = index.indexOf("\x1F", i);
-        const record = index.indexOf("\x1E", i);
-        if (unit < 0 || record < 0) {
-          break;
-        }
+      return {
+        partOfSpeech,
+        appliesToKanji,
+        appliesToKana,
+        related: [], // Not encoded in binary format
+        antonym: [], // Not encoded in binary format
+        field: [], // Not encoded in binary format
+        dialect: [], // Not encoded in binary format
+        misc: [], // Not encoded in binary format
+        info: [], // Not encoded in binary format
+        languageSource: [], // Not encoded in binary format
+        gloss: gloss.map((g) => ({
+          lang: "eng" as const,
+          gender: null,
+          type: null,
+          text: g.text,
+        })),
+      };
+    }),
+  );
 
-        if (record < unit) {
-          start = record + 1;
-          continue;
-        }
-
-        const result = index.substring(unit + 1, record);
-        if (!alreadyYielded.has(result)) {
-          alreadyYielded.add(result);
-          yield result;
-        }
-        start = record + 1;
-      }
-    }
-  }
+  return { id, kanji, kana, sense };
 }
 
-class RadixTreeIndex {
-  private data: Uint8Array;
-  private idToEntry: Map<number, string>;
-  private rootOffset: number;
+function parseCedictWord(data: Uint8Array): CedictWord {
+  const decoder = new Decoder(data);
 
-  private constructor(
-    data: Uint8Array,
-    idToEntry: Map<number, string>,
-    rootOffset: number,
-  ) {
-    this.data = data;
-    this.idToEntry = idToEntry;
-    this.rootOffset = rootOffset;
-  }
+  const traditional = decoder.string();
+  const simplified = decoder.string();
+  const pinyin = [...decoder.iterArray(() => decoder.string())];
+  const senses = [
+    ...decoder.iterArray(() => [...decoder.iterArray(() => decoder.string())]),
+  ];
 
-  static async load(treeUrl: string, idMapUrl: string, metadataUrl: string) {
-    const [treeResp, idMapResp, metadataResp] = await Promise.all([
-      fetch(treeUrl),
-      fetch(idMapUrl),
-      fetch(metadataUrl),
-    ]);
-
-    const data = new Uint8Array(await treeResp.arrayBuffer());
-    const idMapData = await idMapResp.json();
-    const metadata = await metadataResp.json();
-
-    // Convert the ID map to use number keys
-    const idToEntry = new Map<number, string>();
-    for (const [idStr, entryId] of Object.entries(idMapData)) {
-      idToEntry.set(parseInt(idStr), entryId as string);
-    }
-
-    const rootOffset = metadata.rootOffset || 0;
-
-    return new RadixTreeIndex(data, idToEntry, rootOffset);
-  }
-
-  *search(query: string): Generator<string> {
-    const results = new Set<string>();
-    const normalizedQuery = query.toLowerCase().trim();
-
-    if (normalizedQuery.length === 0) {
-      return;
-    }
-
-    // Convert query to UTF-8 bytes
-    const queryBytes = new TextEncoder().encode(normalizedQuery);
-
-    // Search for matches in the radix tree
-    const matches = this.searchInTree(queryBytes);
-
-    for (const id of matches) {
-      const entryId = this.idToEntry.get(id);
-      if (entryId && !results.has(entryId)) {
-        results.add(entryId);
-        yield entryId;
-      }
-    }
-  }
-
-  private searchInTree(queryBytes: Uint8Array): Set<number> {
-    const results = new Set<number>();
-
-    if (this.data.length === 0 || queryBytes.length === 0) {
-      return results;
-    }
-
-    try {
-      this.traverseNode(this.rootOffset, queryBytes, 0, results);
-    } catch (error) {
-      console.warn("Error searching radix tree:", error, {
-        queryBytes,
-        dataLength: this.data.length,
-        rootOffset: this.rootOffset,
-      });
-    }
-
-    return results;
-  }
-
-  private traverseNode(
-    nodeOffset: number,
-    queryBytes: Uint8Array,
-    queryIndex: number,
-    results: Set<number>,
-  ): void {
-    if (nodeOffset >= this.data.length) {
-      console.warn("Node offset out of bounds:", nodeOffset, this.data.length);
-      return;
-    }
-
-    let offset = nodeOffset;
-
-    try {
-      // Read node structure: numChildren, numResults, edgeLen, edge, children, results
-      const [numChildren, newOffset1] = this.decodeVarint(offset);
-      const [numResults, newOffset2] = this.decodeVarint(newOffset1);
-      const [edgeLen, newOffset3] = this.decodeVarint(newOffset2);
-
-      if (edgeLen > 1000) {
-        // Sanity check
-        console.warn(
-          "Suspicious edge length:",
-          edgeLen,
-          "at offset:",
-          nodeOffset,
-        );
-        return;
-      }
-
-      offset = newOffset3;
-
-      // Bounds check for edge
-      if (offset + edgeLen > this.data.length) {
-        console.warn(
-          "Edge extends beyond data bounds:",
-          offset,
-          edgeLen,
-          this.data.length,
-        );
-        return;
-      }
-
-      // Read edge as raw bytes - don't decode as it might not be valid UTF-8
-      const edgeBytes = this.data.slice(offset, offset + edgeLen);
-      offset += edgeLen;
-
-      // Check if query bytes match this edge
-      const remainingQueryBytes = queryBytes.slice(queryIndex);
-
-      // Check if remaining query starts with edge bytes
-      const edgeMatches =
-        remainingQueryBytes.length >= edgeBytes.length &&
-        this.bytesEqual(
-          remainingQueryBytes.slice(0, edgeBytes.length),
-          edgeBytes,
-        );
-
-      if (edgeMatches) {
-        // Edge matches, continue traversal
-        const newQueryIndex = queryIndex + edgeBytes.length;
-
-        // If we've consumed the entire query, collect results from this node and descendants
-        if (newQueryIndex >= queryBytes.length) {
-          // Read results from this node
-          let resultsOffset = offset;
-
-          // Skip children first
-          for (let i = 0; i < numChildren; i++) {
-            const [, nextOffset1] = this.decodeVarint(resultsOffset); // first byte
-            const [, nextOffset2] = this.decodeVarint(nextOffset1); // child offset
-            resultsOffset = nextOffset2;
-          }
-
-          // Now read results
-          for (let i = 0; i < numResults; i++) {
-            const [resultId, nextOffset] = this.decodeVarint(resultsOffset);
-            results.add(resultId);
-            resultsOffset = nextOffset;
-          }
-
-          // For prefix matching, also traverse children to get results from descendant nodes
-          this.traverseAllDescendants(nodeOffset, results);
-        } else {
-          // Continue searching in children
-          for (let i = 0; i < numChildren; i++) {
-            const [firstByte, nextOffset1] = this.decodeVarint(offset);
-            const [childOffset, nextOffset2] = this.decodeVarint(nextOffset1);
-            offset = nextOffset2;
-
-            // Check if the next byte in query matches this child's first byte
-            if (
-              newQueryIndex < queryBytes.length &&
-              queryBytes[newQueryIndex] === firstByte
-            ) {
-              this.traverseNode(
-                childOffset,
-                queryBytes,
-                newQueryIndex,
-                results,
-              );
-            }
-          }
-        }
-      } else if (
-        edgeBytes.length >= remainingQueryBytes.length &&
-        this.bytesEqual(
-          edgeBytes.slice(0, remainingQueryBytes.length),
-          remainingQueryBytes,
-        )
-      ) {
-        // Query is a prefix of the edge - collect all results from this subtree
-        this.traverseAllDescendants(nodeOffset, results);
-      }
-      // If neither case matches, this path doesn't match the query
-    } catch (error) {
-      console.warn("Error traversing node at offset:", nodeOffset, error);
-    }
-  }
-
-  private traverseAllDescendants(
-    nodeOffset: number,
-    results: Set<number>,
-    depth: number = 0,
-  ): void {
-    if (nodeOffset >= this.data.length || depth > 20) {
-      // Prevent infinite recursion
-      return;
-    }
-
-    let offset = nodeOffset;
-
-    try {
-      const [numChildren, newOffset1] = this.decodeVarint(offset);
-      const [numResults, newOffset2] = this.decodeVarint(newOffset1);
-      const [edgeLen, newOffset3] = this.decodeVarint(newOffset2);
-
-      offset = newOffset3 + edgeLen; // Skip edge
-
-      // Store children offsets
-      const childOffsets: number[] = [];
-      for (let i = 0; i < numChildren; i++) {
-        const [, nextOffset1] = this.decodeVarint(offset); // first byte
-        const [childOffset, nextOffset2] = this.decodeVarint(nextOffset1);
-        if (childOffset < this.data.length) {
-          childOffsets.push(childOffset);
-        }
-        offset = nextOffset2;
-      }
-
-      // Read results from this node
-      for (let i = 0; i < numResults; i++) {
-        const [resultId, nextOffset] = this.decodeVarint(offset);
-        results.add(resultId);
-        offset = nextOffset;
-      }
-
-      // Recursively traverse children
-      for (const childOffset of childOffsets) {
-        this.traverseAllDescendants(childOffset, results, depth + 1);
-      }
-    } catch (error) {
-      console.warn(
-        "Error in traverseAllDescendants at offset:",
-        nodeOffset,
-        error,
-      );
-    }
-  }
-
-  private bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-    if (a.length !== b.length) {
-      return false;
-    }
-    for (let i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private decodeVarint(offset: number): [number, number] {
-    let value = 0;
-    let shift = 0;
-    let currentOffset = offset;
-
-    if (offset >= this.data.length) {
-      throw new Error(
-        `Varint decode offset out of bounds: ${offset} >= ${this.data.length}`,
-      );
-    }
-
-    while (currentOffset < this.data.length && shift < 35) {
-      // Prevent overflow
-      const byte = this.data[currentOffset];
-      currentOffset++;
-
-      value |= (byte & 0x7f) << shift;
-
-      if ((byte & 0x80) === 0) {
-        break;
-      }
-
-      shift += 7;
-    }
-
-    return [value, currentOffset];
-  }
+  return { traditional, simplified, pinyin, senses };
 }

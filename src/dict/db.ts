@@ -2,16 +2,12 @@ import { openDB } from "idb";
 
 export type DictDbSchema = {
   jmdict: {
-    key: string;
-    value: string;
-  };
-  kanjidic: {
-    key: string;
-    value: string;
+    key: number;
+    value: { ref: string; data: Uint8Array };
   };
   cedict: {
-    key: string;
-    value: string;
+    key: number;
+    value: { ref: string; data: Uint8Array };
   };
   meta: {
     key: string;
@@ -26,16 +22,12 @@ export async function openDictDb() {
         db.createObjectStore("jmdict");
       }
 
-      if (!db.objectStoreNames.contains("kanjidic")) {
-        db.createObjectStore("kanjidic");
+      if (!db.objectStoreNames.contains("cedict")) {
+        db.createObjectStore("cedict");
       }
 
       if (!db.objectStoreNames.contains("meta")) {
         db.createObjectStore("meta");
-      }
-
-      if (!db.objectStoreNames.contains("cedict")) {
-        db.createObjectStore("cedict");
       }
     },
   });

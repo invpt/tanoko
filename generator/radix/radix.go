@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/invpt/tanoko/generator/encode"
+	"github.com/invpt/tanoko/generator/util"
 )
 
 type Tree struct {
@@ -34,7 +35,7 @@ func (t *Tree) Add(text string, id uint32) {
 
 func (n *node) insert(key string, resultID uint32) {
 	if len(key) == 0 {
-		n.results = appendUniqueSorted(n.results, resultID)
+		n.results = util.AppendUniqueSorted(n.results, resultID)
 		return
 	}
 
@@ -111,37 +112,11 @@ func (n *node) insert(key string, resultID uint32) {
 			splitNode.children[remainingKey[0]] = newNode
 		} else {
 			// Remaining key is empty, add result to split node
-			splitNode.results = appendUniqueSorted(splitNode.results, resultID)
+			splitNode.results = util.AppendUniqueSorted(splitNode.results, resultID)
 		}
 
 		n.children[firstByte] = splitNode
 	}
-}
-
-// appendUniqueSorted appends a value to a sorted slice maintaining sort order and uniqueness
-func appendUniqueSorted(s []uint32, val uint32) []uint32 {
-	// Find insertion point using binary search
-	i := 0
-	j := len(s)
-	for i < j {
-		mid := (i + j) / 2
-		if s[mid] < val {
-			i = mid + 1
-		} else {
-			j = mid
-		}
-	}
-
-	// If value already exists, return slice unchanged
-	if i < len(s) && s[i] == val {
-		return s
-	}
-
-	// Insert at position i
-	s = append(s, 0)
-	copy(s[i+1:], s[i:])
-	s[i] = val
-	return s
 }
 
 func (t *Tree) PrintStats(name string) {
@@ -161,7 +136,7 @@ func (n *node) countStats(nodeCount *int, totalResults *int) {
 
 func (t *Tree) Export(w io.Writer) error {
 	b := encode.NewBuffer()
-	t.root.encode(b, make(map[*node]uint32))
+	encode.Uint32(b, t.root.encode(b, make(map[*node]uint32)))
 	_, err := w.Write(b.Finish())
 	return err
 }

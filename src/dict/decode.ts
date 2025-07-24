@@ -1,3 +1,9 @@
+export enum SeekOrigin {
+  Begin = 0,
+  Current = 1,
+  End = 2,
+}
+
 /**
  * Decodes a stream of varint-prefixed chunks as produced by the Go Stream encoder.
  * Each chunk in the stream is prefixed by a varint indicating its length.
@@ -7,6 +13,7 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
   private buffer: Uint8Array;
   private bufferOffset: number;
   private bufferEnd: number;
+  private totalOffset: number;
   private closed: boolean;
 
   constructor(stream: ReadableStream<Uint8Array>) {
@@ -14,10 +21,12 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
     this.buffer = new Uint8Array(0);
     this.bufferOffset = 0;
     this.bufferEnd = 0;
+    this.totalOffset = 0;
     this.closed = false;
   }
 
   async *[Symbol.asyncIterator](): AsyncIterator<Uint8Array> {
+    let chunkIdx = 0;
     while (!this.closed) {
       try {
         const length = await this.readVarint();
@@ -26,6 +35,7 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
           break;
         }
 
+        console.log("New stream chunk", chunkIdx++, "offset", this.totalOffset);
         const chunkBytes = await this.readBytes(length);
         yield chunkBytes;
       } catch (error) {
@@ -77,6 +87,7 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
       return null;
     }
 
+    this.totalOffset++;
     return this.buffer[this.bufferOffset++];
   }
 
@@ -98,6 +109,7 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
         resultOffset,
       );
 
+      this.totalOffset += toCopy;
       this.bufferOffset += toCopy;
       resultOffset += toCopy;
     }
@@ -132,29 +144,65 @@ export class Decoder {
     this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   }
 
-  seek(offset: number) {
-    this.offset = offset;
-  }
-
-  array<T>(decoder: (d: Decoder) => T): T[] {
-    const length = this.varint();
-    const items: T[] = [];
-    for (let i = 0; i < length; i++) {
-      items.push(decoder(this));
+  seek(offset: number, origin: SeekOrigin = SeekOrigin.Begin) {
+    switch (origin) {
+      case SeekOrigin.Begin:
+        this.offset = offset;
+        break;
+      case SeekOrigin.Current:
+        this.offset += offset;
+        break;
+      case SeekOrigin.End:
+        this.offset = this.bytes.length + offset;
+        break;
     }
-    return items;
   }
 
-  string(): string {
-    const length = this.varint();
+  currentOffset(): number {
+    return this.offset;
+  }
+
+  rest(): Uint8Array {
+    return this.bytes.slice(this.offset);
+  }
+
+  *iterArray<T>(decoder: (d: Decoder) => T): Generator<T> {
+    const length = this.uvarint();
+
+    for (let i = 0; i < length; i++) {
+      const decoded = decoder(this);
+      const offset = this.offset;
+      yield decoded;
+      this.seek(offset); // protect against people doing stuff in between
+    }
+  }
+
+  string(length?: number): string {
+    length ??= this.uvarint();
     const start = this.offset;
     this.offset += length;
 
     if (this.offset > this.bytes.length) {
-      throw new Error("Not enough bytes to read string");
+      throw new Error(
+        `Not enough bytes to read string at offset ${this.offset} with length ${length}`,
+      );
     }
 
     return new TextDecoder().decode(this.bytes.slice(start, this.offset));
+  }
+
+  byteString(length?: number): Uint8Array {
+    length ??= this.uvarint();
+    const start = this.offset;
+    this.offset += length;
+
+    if (this.offset > this.bytes.length) {
+      throw new Error(
+        `Not enough bytes to read byte string at offset ${this.offset} with length ${length}`,
+      );
+    }
+
+    return this.bytes.slice(start, this.offset);
   }
 
   varint(): number {

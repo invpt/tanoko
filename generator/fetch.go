@@ -23,7 +23,7 @@ type githubRelease struct {
 }
 
 type githubReleaseAsset struct {
-	Name               string
+	Name               string `json:"name"`
 	BrowserDownloadUrl string `json:"browser_download_url"`
 }
 

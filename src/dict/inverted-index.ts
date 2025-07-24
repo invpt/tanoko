@@ -5,6 +5,11 @@ interface WordEntry {
   length: number;
 }
 
+interface DocumentMatch {
+  docId: number;
+  senses: number; // bitfield indicating which senses the word appears in
+}
+
 // Diacritic mapping similar to Go code
 const DIACRITIC_MAP: Record<string, string> = {
   à: "a",
@@ -176,7 +181,7 @@ export class InvertedIndex {
       // Seek to the middle entry
       indexDecoder.seek(mid * 4);
       const packed = indexDecoder.uint32();
-      const offset = packed & 0xffffff; // Lower 31 bits for offset
+      const offset = packed & 0xffffff; // Lower 24 bits for offset
       const wordLength = (packed >>> 24) & 0xff; // Upper 8 bits for length
 
       // Read the word bytes at this offset
@@ -230,7 +235,7 @@ export class InvertedIndex {
   }
 
   /**
-   * Search for a query and return a generator of document IDs for lazy evaluation.
+   * Search for a query and return a generator of document IDs ordered by sense priority.
    */
   *search(query: string): Generator<number, undefined, undefined> {
     const tokens = tokenize(query);
@@ -239,8 +244,8 @@ export class InvertedIndex {
     }
 
     if (tokens.length === 1) {
-      // Single word query
-      yield* this.searchSingleWord(tokens[0]);
+      // Single word query - yield document IDs ordered by sense priority
+      yield* this.getOrderedDocuments(this.searchSingleWord(tokens[0]));
     } else {
       // Multi-word query
       yield* this.searchMultiWord(tokens);
@@ -248,11 +253,11 @@ export class InvertedIndex {
   }
 
   /**
-   * Search for a single word and return a generator of document IDs.
+   * Search for a single word and return a generator of document matches with sense information.
    */
   private *searchSingleWord(
     word: string,
-  ): Generator<number, undefined, undefined> {
+  ): Generator<DocumentMatch, undefined, undefined> {
     const entry = this.findWordEntry(word);
     if (!entry) {
       return;
@@ -261,12 +266,16 @@ export class InvertedIndex {
     const decoder = new Decoder(this.entriesData);
     decoder.seek(entry.offset + entry.length); // Skip the word itself
 
-    // Read the posting list using generator
-    yield* decoder.iterArray((d) => d.uvarint());
+    // Read the posting list - each entry is now docId + senses bitfield
+    yield* decoder.iterArray((d) => ({
+      docId: d.uvarint(),
+      senses: d.uint8(),
+    }));
   }
 
   /**
    * Search for multiple words using generators for memory efficiency.
+   * Ensures all words appear in the same sense.
    */
   private *searchMultiWord(
     tokens: string[],
@@ -285,38 +294,48 @@ export class InvertedIndex {
       }
     }
 
-    // If we have no non-common tokens, search all tokens normally
+    // If we have no non-common tokens, search all tokens with sense intersection
     if (nonCommonTokens.length === 0) {
-      yield* this.intersectSortedGenerators(
-        tokens.map((token) => this.searchSingleWord(token)),
+      yield* this.getOrderedDocuments(
+        this.intersectSenseAwareGenerators(
+          tokens.map((token) => this.searchSingleWord(token)),
+        ),
       );
       return;
     }
 
-    const candidates = this.intersectSortedGenerators(
+    const candidates = this.intersectSenseAwareGenerators(
       nonCommonTokens.map((token) => this.searchSingleWord(token)),
     );
 
-    // Filter candidates using common word bitmasks
+    // Filter candidates using common word bitmasks and yield ordered results
     if (commonTokenBitmasks.length > 0) {
       const combinedBitmask = commonTokenBitmasks.reduce(
         (acc, mask) => acc | mask,
         0,
       );
 
-      for (const docId of candidates) {
-        if (this.checkCommonWordBitmask(docId, combinedBitmask)) {
-          yield docId;
+      const filteredCandidates: DocumentMatch[] = [];
+      for (const match of candidates) {
+        if (this.checkCommonWordBitmask(match.docId, combinedBitmask)) {
+          filteredCandidates.push(match);
         }
       }
+
+      yield* this.getOrderedDocuments(
+        this.arrayToGenerator(filteredCandidates),
+      );
     } else {
-      yield* candidates;
+      yield* this.getOrderedDocuments(candidates);
     }
   }
 
-  private *intersectSortedGenerators(
-    gens: Generator<number, undefined, undefined>[],
-  ) {
+  /**
+   * Intersect sense-aware generators, ensuring all words appear in the same sense.
+   */
+  private *intersectSenseAwareGenerators(
+    gens: Generator<DocumentMatch, undefined, undefined>[],
+  ): Generator<DocumentMatch, undefined, undefined> {
     if (gens.length === 0) {
       return;
     }
@@ -329,30 +348,97 @@ export class InvertedIndex {
         return;
       }
 
-      // Find min and max values without allocation
-      let minVal = values[0].value!;
-      let maxVal = values[0].value!;
+      // Find min and max document IDs
+      let minDocId = values[0].value!.docId;
+      let maxDocId = values[0].value!.docId;
       for (let i = 1; i < values.length; i++) {
-        const val = values[i].value!;
-        if (val < minVal) minVal = val;
-        if (val > maxVal) maxVal = val;
+        const docId = values[i].value!.docId;
+        if (docId < minDocId) minDocId = docId;
+        if (docId > maxDocId) maxDocId = docId;
       }
 
-      // If all values are equal, we have an intersection
-      if (minVal === maxVal) {
-        yield minVal;
+      // If all document IDs are equal, check for common senses
+      if (minDocId === maxDocId) {
+        // Find intersection of senses across all words
+        let commonSenses = values[0].value!.senses;
+        for (let i = 1; i < values.length; i++) {
+          commonSenses &= values[i].value!.senses;
+        }
+
+        // If there's at least one common sense, yield the match
+        if (commonSenses !== 0) {
+          yield {
+            docId: minDocId,
+            senses: commonSenses,
+          };
+        }
+
         // Advance all generators
         for (let i = 0; i < values.length; i++) {
           values[i] = gens[i].next();
         }
       } else {
-        // Advance generators that don't have the maximum value
+        // Advance generators that don't have the maximum document ID
         for (let i = 0; i < values.length; i++) {
-          if (values[i].value !== maxVal) {
+          if (values[i].value!.docId !== maxDocId) {
             values[i] = gens[i].next();
           }
         }
       }
     }
+  }
+
+  /**
+   * Convert DocumentMatch array to generator for consistent interface.
+   */
+  private *arrayToGenerator(
+    matches: DocumentMatch[],
+  ): Generator<DocumentMatch, undefined, undefined> {
+    for (const match of matches) {
+      yield match;
+    }
+  }
+
+  /**
+   * Order documents by sense priority (lower sense indices first) and return document IDs.
+   */
+  private *getOrderedDocuments(
+    matches: Generator<DocumentMatch, undefined, undefined>,
+  ): Generator<number, undefined, undefined> {
+    // Collect all matches to sort them
+    const allMatches: DocumentMatch[] = [];
+    for (const match of matches) {
+      allMatches.push(match);
+    }
+
+    // Sort by lowest sense index first, then by document ID
+    allMatches.sort((a, b) => {
+      const aLowestSense = this.getLowestSenseIndex(a.senses);
+      const bLowestSense = this.getLowestSenseIndex(b.senses);
+
+      if (aLowestSense !== bLowestSense) {
+        return aLowestSense - bLowestSense;
+      }
+
+      return a.docId - b.docId;
+    });
+
+    // Yield document IDs in order
+    for (const match of allMatches) {
+      yield match.docId;
+    }
+  }
+
+  /**
+   * Get the index of the lowest set bit in the senses bitfield.
+   */
+  private getLowestSenseIndex(senses: number): number {
+    if (senses === 0) return Infinity;
+
+    let index = 0;
+    while ((senses & (1 << index)) === 0) {
+      index++;
+    }
+    return index;
   }
 }

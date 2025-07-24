@@ -99,10 +99,10 @@ func writeCedictEnglishIndex(ce cedict.CEDICT, idMap *resultIDMap, outputDir str
 	for _, entry := range ce {
 		entryID := idMap.GetID(entry.Traditional)
 
-		for _, sense := range entry.Senses {
+		for senseIdx, sense := range entry.Senses {
 			for _, gloss := range sense {
 				if strings.TrimSpace(gloss) != "" {
-					builder.Add(stripSquareBrackets(gloss), entryID)
+					builder.Add(stripSquareBrackets(gloss), entryID, senseIdx)
 				}
 			}
 		}

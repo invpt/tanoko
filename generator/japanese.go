@@ -125,10 +125,10 @@ func writeJmdictEnglishIndex(jm jmdict.JMdict, idMap *resultIDMap, outputDir str
 	for _, word := range jm.Words {
 		entryID := idMap.GetID(word.ID)
 
-		for _, sense := range word.Sense {
+		for senseIdx, sense := range word.Sense {
 			for _, gloss := range sense.Gloss {
 				if strings.TrimSpace(gloss.Text) != "" {
-					builder.Add(gloss.Text, entryID)
+					builder.Add(gloss.Text, entryID, senseIdx)
 				}
 			}
 		}

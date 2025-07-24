@@ -1,6 +1,7 @@
 package index
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -9,37 +10,53 @@ import (
 
 	"github.com/invpt/tanoko/generator/encode"
 	"github.com/invpt/tanoko/generator/english"
-	"github.com/invpt/tanoko/generator/util"
 )
 
 const COMMON_WORD_COUNT = 16
 const COMMON_POSTING_LIST_SIZE = 100
 
 type Builder struct {
-	entries map[string][]uint32
-	maxID   uint32
+	postings map[string][]Posting
+	maxID    uint32
+}
+
+type Posting struct {
+	entryId uint32
+	senses  uint8
 }
 
 func NewBuilder() *Builder {
-	return &Builder{entries: map[string][]uint32{}}
+	return &Builder{postings: map[string][]Posting{}}
 }
 
-func (b *Builder) Add(text string, id uint32) {
+func (b *Builder) Add(text string, id uint32, senseIdx int) {
+	senseBit := uint8(1 << min(8, senseIdx))
+
 	b.maxID = max(b.maxID, id)
+outer:
 	for _, token := range english.Tokenize(text) {
-		b.entries[token] = util.AppendUniqueSorted(b.entries[token], id)
+		postings := b.postings[token]
+		for i, posting := range postings {
+			if posting.entryId == id {
+				posting.senses |= senseBit
+				postings[i] = posting
+				continue outer
+			}
+		}
+		b.postings[token] = append(b.postings[token], Posting{entryId: id, senses: senseBit})
+		slices.SortFunc(b.postings[token], func(a Posting, b Posting) int { return cmp.Compare(a.entryId, b.entryId) })
 	}
 }
 
 func (b *Builder) Build() *Index {
 	return &Index{
-		commonWords: findCommonWords(b.entries),
-		entries:     b.entries,
+		commonWords: findCommonWords(b.postings),
+		postings:    b.postings,
 		maxID:       b.maxID,
 	}
 }
 
-func findCommonWords(entries map[string][]uint32) (commonWords []string) {
+func findCommonWords(entries map[string][]Posting) (commonWords []string) {
 	type tokenCount struct {
 		token string
 		count int
@@ -61,14 +78,14 @@ func findCommonWords(entries map[string][]uint32) (commonWords []string) {
 
 type Index struct {
 	commonWords []string
-	entries     map[string][]uint32
+	postings    map[string][]Posting
 	maxID       uint32
 }
 
 func (idx *Index) PrintStats(name string) {
-	totalEntries := len(idx.entries)
+	totalEntries := len(idx.postings)
 	totalPostings := 0
-	for _, postings := range idx.entries {
+	for _, postings := range idx.postings {
 		totalPostings += len(postings)
 	}
 	fmt.Printf("%s: %d terms, %d postings, %d common words\n", name, totalEntries, totalPostings, len(idx.commonWords))
@@ -127,11 +144,11 @@ func (idx *Index) exportCommonWords(b *encode.Buffer) (err error) {
 
 	table := make([]uint16, idx.maxID+1)
 
-	for word, entries := range idx.entries {
+	for word, postings := range idx.postings {
 		if bitMask, isCommon := wordToBit[word]; isCommon {
-			for _, entryID := range entries {
-				if int(entryID) < len(table) {
-					table[entryID] |= bitMask
+			for _, posting := range postings {
+				if int(posting.entryId) < len(table) {
+					table[posting.entryId] |= bitMask
 				}
 			}
 		}
@@ -146,7 +163,7 @@ func (idx *Index) exportCommonWords(b *encode.Buffer) (err error) {
 
 func (idx *Index) exportEntryIndex(b *encode.Buffer, offsets map[string]uint32) error {
 	var sortedWords []string
-	for word := range idx.entries {
+	for word := range idx.postings {
 		sortedWords = append(sortedWords, word)
 	}
 	sort.Strings(sortedWords)
@@ -168,24 +185,25 @@ func (idx *Index) exportEntryIndex(b *encode.Buffer, offsets map[string]uint32) 
 
 func (idx *Index) exportEntries(b *encode.Buffer) (map[string]uint32, error) {
 	var sortedWords []string
-	for word := range idx.entries {
+	for word := range idx.postings {
 		sortedWords = append(sortedWords, word)
 	}
 	slices.Sort(sortedWords)
 
-	offsets := make(map[string]uint32, len(idx.entries))
+	offsets := make(map[string]uint32, len(idx.postings))
 	for _, word := range sortedWords {
 		offsets[word] = uint32(b.Offset())
 
 		encode.Raw(b, word)
 
-		entries := idx.entries[word]
-		if slices.Contains(idx.commonWords, word) && len(entries) > COMMON_POSTING_LIST_SIZE {
-			entries = entries[:COMMON_POSTING_LIST_SIZE]
+		postings := idx.postings[word]
+		if slices.Contains(idx.commonWords, word) && len(postings) > COMMON_POSTING_LIST_SIZE {
+			postings = postings[:COMMON_POSTING_LIST_SIZE]
 		}
 
-		for _, entryID := range encode.Array(b, entries) {
-			encode.Uvarint(b, entryID)
+		for _, posting := range encode.Array(b, postings) {
+			encode.Uvarint(b, posting.entryId)
+			encode.Uint8(b, posting.senses)
 		}
 	}
 

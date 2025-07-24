@@ -23,6 +23,7 @@ type Builder struct {
 type Posting struct {
 	entryId uint32
 	senses  uint8
+	length  uint8
 }
 
 func NewBuilder() *Builder {
@@ -30,20 +31,24 @@ func NewBuilder() *Builder {
 }
 
 func (b *Builder) Add(text string, id uint32, senseIdx int) {
-	senseBit := uint8(1 << min(8, senseIdx))
-
 	b.maxID = max(b.maxID, id)
+
+	tokens := english.Tokenize(text)
+	senseBit := uint8(1 << min(8, senseIdx))
+	length := uint8(min(255, len(tokens)))
+
 outer:
-	for _, token := range english.Tokenize(text) {
+	for _, token := range tokens {
 		postings := b.postings[token]
 		for i, posting := range postings {
 			if posting.entryId == id {
 				posting.senses |= senseBit
+				posting.length = min(posting.length, length)
 				postings[i] = posting
 				continue outer
 			}
 		}
-		b.postings[token] = append(b.postings[token], Posting{entryId: id, senses: senseBit})
+		b.postings[token] = append(b.postings[token], Posting{entryId: id, senses: senseBit, length: length})
 		slices.SortFunc(b.postings[token], func(a Posting, b Posting) int { return cmp.Compare(a.entryId, b.entryId) })
 	}
 }
@@ -204,6 +209,7 @@ func (idx *Index) exportEntries(b *encode.Buffer) (map[string]uint32, error) {
 		for _, posting := range encode.Array(b, postings) {
 			encode.Uvarint(b, posting.entryId)
 			encode.Uint8(b, posting.senses)
+			encode.Uint8(b, posting.length)
 		}
 	}
 

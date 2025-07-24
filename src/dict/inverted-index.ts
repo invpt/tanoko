@@ -8,6 +8,7 @@ interface WordEntry {
 interface DocumentMatch {
   docId: number;
   senses: number; // bitfield indicating which senses the word appears in
+  length: number;
 }
 
 // Diacritic mapping similar to Go code
@@ -270,6 +271,7 @@ export class InvertedIndex {
     yield* decoder.iterArray((d) => ({
       docId: d.uvarint(),
       senses: d.uint8(),
+      length: d.uint8(),
     }));
   }
 
@@ -297,14 +299,12 @@ export class InvertedIndex {
     // If we have no non-common tokens, search all tokens with sense intersection
     if (nonCommonTokens.length === 0) {
       yield* this.getOrderedDocuments(
-        this.intersectSenseAwareGenerators(
-          tokens.map((token) => this.searchSingleWord(token)),
-        ),
+        this.intersect(tokens.map((token) => this.searchSingleWord(token))),
       );
       return;
     }
 
-    const candidates = this.intersectSenseAwareGenerators(
+    const candidates = this.intersect(
       nonCommonTokens.map((token) => this.searchSingleWord(token)),
     );
 
@@ -315,15 +315,10 @@ export class InvertedIndex {
         0,
       );
 
-      const filteredCandidates: DocumentMatch[] = [];
-      for (const match of candidates) {
-        if (this.checkCommonWordBitmask(match.docId, combinedBitmask)) {
-          filteredCandidates.push(match);
-        }
-      }
-
       yield* this.getOrderedDocuments(
-        this.arrayToGenerator(filteredCandidates),
+        candidates.filter((match) =>
+          this.checkCommonWordBitmask(match.docId, combinedBitmask),
+        ),
       );
     } else {
       yield* this.getOrderedDocuments(candidates);
@@ -333,7 +328,7 @@ export class InvertedIndex {
   /**
    * Intersect sense-aware generators, ensuring all words appear in the same sense.
    */
-  private *intersectSenseAwareGenerators(
+  private *intersect(
     gens: Generator<DocumentMatch, undefined, undefined>[],
   ): Generator<DocumentMatch, undefined, undefined> {
     if (gens.length === 0) {
@@ -361,8 +356,10 @@ export class InvertedIndex {
       if (minDocId === maxDocId) {
         // Find intersection of senses across all words
         let commonSenses = values[0].value!.senses;
+        let maxLength = values[0].value!.length;
         for (let i = 1; i < values.length; i++) {
           commonSenses &= values[i].value!.senses;
+          maxLength = Math.max(maxLength, values[i].value!.length);
         }
 
         // If there's at least one common sense, yield the match
@@ -370,6 +367,7 @@ export class InvertedIndex {
           yield {
             docId: minDocId,
             senses: commonSenses,
+            length: maxLength,
           };
         }
 
@@ -389,21 +387,10 @@ export class InvertedIndex {
   }
 
   /**
-   * Convert DocumentMatch array to generator for consistent interface.
-   */
-  private *arrayToGenerator(
-    matches: DocumentMatch[],
-  ): Generator<DocumentMatch, undefined, undefined> {
-    for (const match of matches) {
-      yield match;
-    }
-  }
-
-  /**
    * Order documents by sense priority (lower sense indices first) and return document IDs.
    */
   private *getOrderedDocuments(
-    matches: Generator<DocumentMatch, undefined, undefined>,
+    matches: IteratorObject<DocumentMatch, undefined, undefined>,
   ): Generator<number, undefined, undefined> {
     // Collect all matches to sort them
     const allMatches: DocumentMatch[] = [];
@@ -418,6 +405,10 @@ export class InvertedIndex {
 
       if (aLowestSense !== bLowestSense) {
         return aLowestSense - bLowestSense;
+      }
+
+      if (a.length !== b.length) {
+        return a.length - b.length;
       }
 
       return a.docId - b.docId;

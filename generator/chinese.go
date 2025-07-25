@@ -40,6 +40,8 @@ func writeCedictBinary(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) e
 	}
 	defer file.Close()
 
+	offsets := encode.NewBuffer()
+
 	s := encode.NewStream(file)
 	defer s.Flush()
 
@@ -67,6 +69,8 @@ func writeCedictBinary(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) e
 	})
 
 	for _, word := range ce {
+		encode.Uint32(offsets, uint32(s.Offset()))
+
 		b, err := s.Append()
 		if err != nil {
 			return err
@@ -85,6 +89,19 @@ func writeCedictBinary(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) e
 				encode.String(b, gloss)
 			}
 		}
+	}
+
+	encode.Uint32(offsets, uint32(s.Offset()))
+
+	offsetsFile, err := os.Create(filepath.Join(outputDir, "cedict-offsets.bin"))
+	if err != nil {
+		return err
+	}
+	defer offsetsFile.Close()
+
+	_, err = offsetsFile.Write(offsets.Finish())
+	if err != nil {
+		return err
 	}
 
 	return nil

@@ -8,10 +8,15 @@ import (
 type Stream struct {
 	scratch *Buffer
 	content io.Writer
+	offset  int
 }
 
 func NewStream(w io.Writer) *Stream {
 	return &Stream{content: w}
+}
+
+func (s *Stream) Offset() int {
+	return s.offset
 }
 
 func (s *Stream) Append() (*Buffer, error) {
@@ -42,10 +47,12 @@ func (s *Stream) flush() error {
 	if err != nil {
 		return err
 	}
+	s.offset += len(b.bytes)
 	_, err = s.content.Write(s.scratch.bytes)
 	if err != nil {
 		return err
 	}
+	s.offset += len(s.scratch.bytes)
 	s.scratch.Reset()
 	return nil
 }

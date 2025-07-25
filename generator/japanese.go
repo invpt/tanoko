@@ -39,6 +39,8 @@ func writeJmdictBinary(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) e
 	}
 	defer file.Close()
 
+	offsets := encode.NewBuffer()
+
 	s := encode.NewStream(file)
 	defer s.Flush()
 
@@ -73,6 +75,8 @@ func writeJmdictBinary(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) e
 	})
 
 	for _, word := range jm.Words {
+		encode.Uint32(offsets, uint32(s.Offset()))
+
 		b, err := s.Append()
 		if err != nil {
 			return err
@@ -118,6 +122,19 @@ func writeJmdictBinary(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) e
 				encode.String(b, gloss.Text)
 			}
 		}
+	}
+
+	encode.Uint32(offsets, uint32(s.Offset()))
+
+	offsetsFile, err := os.Create(filepath.Join(outputDir, "jmdict-offsets.bin"))
+	if err != nil {
+		return err
+	}
+	defer offsetsFile.Close()
+
+	_, err = offsetsFile.Write(offsets.Finish())
+	if err != nil {
+		return err
 	}
 
 	return nil

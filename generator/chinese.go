@@ -16,35 +16,26 @@ import (
 )
 
 func generateChinese(ce cedict.CEDICT, outputDir string) error {
-	idMap := newResultIDMap()
+	if err := sortCedictByFrequency(ce); err != nil {
+		return fmt.Errorf("failed to sort by frequency: %w", err)
+	}
 
-	if err := writeCedictBinary(ce, idMap, outputDir); err != nil {
+	if err := writeCedictBinary(ce, outputDir); err != nil {
 		return fmt.Errorf("failed to write cedict binary: %w", err)
 	}
 
-	if err := writeCedictNativeRadix(ce, idMap, outputDir); err != nil {
+	if err := writeCedictNativeRadix(ce, outputDir); err != nil {
 		return fmt.Errorf("failed to write cedict native radix: %w", err)
 	}
 
-	if err := writeCedictEnglishIndex(ce, idMap, outputDir); err != nil {
+	if err := writeCedictEnglishIndex(ce, outputDir); err != nil {
 		return fmt.Errorf("failed to write cedict english index: %w", err)
 	}
 
 	return nil
 }
 
-func writeCedictBinary(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) error {
-	file, err := os.Create(filepath.Join(outputDir, "cedict.bin"))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	offsets := encode.NewBuffer()
-
-	s := encode.NewStream(file)
-	defer s.Flush()
-
+func sortCedictByFrequency(ce cedict.CEDICT) error {
 	wf, err := wordfreq.New()
 	if err != nil {
 		return fmt.Errorf("failed to initialize wordfreq: %w", err)
@@ -68,7 +59,22 @@ func writeCedictBinary(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) e
 		return getFreq(ce[i].Simplified) > getFreq(ce[j].Simplified)
 	})
 
-	for _, word := range ce {
+	return nil
+}
+
+func writeCedictBinary(ce cedict.CEDICT, outputDir string) error {
+	file, err := os.Create(filepath.Join(outputDir, "cedict.bin"))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	offsets := encode.NewBuffer()
+
+	s := encode.NewStream(file)
+	defer s.Flush()
+
+	for index, word := range ce {
 		encode.Uint32(offsets, uint32(s.Offset()))
 
 		b, err := s.Append()
@@ -76,7 +82,7 @@ func writeCedictBinary(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) e
 			return err
 		}
 
-		encode.Uvarint(b, idMap.GetID(word.Traditional))
+		encode.Uvarint(b, uint(index))
 		encode.String(b, word.Traditional)
 		encode.String(b, word.Simplified)
 
@@ -107,20 +113,20 @@ func writeCedictBinary(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) e
 	return nil
 }
 
-func writeCedictNativeRadix(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) error {
+func writeCedictNativeRadix(ce cedict.CEDICT, outputDir string) error {
 	tree := radix.New()
 
-	for _, entry := range ce {
-		entryID := idMap.GetID(entry.Traditional)
+	for index, entry := range ce {
+		entryIndex := uint32(index)
 
 		for _, pinyin := range processPinyin(entry.Pinyin) {
-			tree.Add(pinyin, entryID)
+			tree.Add(pinyin, entryIndex)
 		}
 
-		tree.Add(entry.Traditional, entryID)
+		tree.Add(entry.Traditional, entryIndex)
 
 		if entry.Simplified != entry.Traditional {
-			tree.Add(entry.Simplified, entryID)
+			tree.Add(entry.Simplified, entryIndex)
 		}
 	}
 
@@ -135,16 +141,14 @@ func writeCedictNativeRadix(ce cedict.CEDICT, idMap *resultIDMap, outputDir stri
 	return tree.Export(file)
 }
 
-func writeCedictEnglishIndex(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) error {
+func writeCedictEnglishIndex(ce cedict.CEDICT, outputDir string) error {
 	builder := index.NewBuilder()
 
-	for _, entry := range ce {
-		entryID := idMap.GetID(entry.Traditional)
-
+	for index, entry := range ce {
 		for senseIdx, sense := range entry.Senses {
 			for _, gloss := range sense {
 				if strings.TrimSpace(gloss) != "" {
-					builder.Add(stripSquareBrackets(gloss), entryID, senseIdx)
+					builder.Add(stripSquareBrackets(gloss), uint32(index), senseIdx)
 				}
 			}
 		}

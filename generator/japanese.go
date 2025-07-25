@@ -15,35 +15,24 @@ import (
 )
 
 func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) error {
-	idMap := newResultIDMap()
+	sortJmdictByFrequency(jm)
 
-	if err := writeJmdictBinary(jm, idMap, outputDir); err != nil {
+	if err := writeJmdictBinary(jm, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict binary: %w", err)
 	}
 
-	if err := writeJmdictNativeRadix(jm, idMap, outputDir); err != nil {
+	if err := writeJmdictNativeRadix(jm, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict native radix: %w", err)
 	}
 
-	if err := writeJmdictEnglishIndex(jm, idMap, outputDir); err != nil {
+	if err := writeJmdictEnglishIndex(jm, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict english index: %w", err)
 	}
 
 	return nil
 }
 
-func writeJmdictBinary(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) error {
-	file, err := os.Create(filepath.Join(outputDir, "jmdict.bin"))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	offsets := encode.NewBuffer()
-
-	s := encode.NewStream(file)
-	defer s.Flush()
-
+func sortJmdictByFrequency(jm jmdict.JMdict) error {
 	wf, err := wordfreq.New()
 	if err != nil {
 		return fmt.Errorf("failed to initialize wordfreq: %w", err)
@@ -74,7 +63,22 @@ func writeJmdictBinary(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) e
 		return getFreq(jm.Words[i]) > getFreq(jm.Words[j])
 	})
 
-	for _, word := range jm.Words {
+	return nil
+}
+
+func writeJmdictBinary(jm jmdict.JMdict, outputDir string) error {
+	file, err := os.Create(filepath.Join(outputDir, "jmdict.bin"))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	offsets := encode.NewBuffer()
+
+	s := encode.NewStream(file)
+	defer s.Flush()
+
+	for index, word := range jm.Words {
 		encode.Uint32(offsets, uint32(s.Offset()))
 
 		b, err := s.Append()
@@ -82,7 +86,8 @@ func writeJmdictBinary(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) e
 			return err
 		}
 
-		encode.Uvarint(b, idMap.GetID(word.ID))
+		encode.Uvarint(b, uint32(index))
+
 		encode.String(b, word.ID)
 
 		for _, k := range encode.Array(b, word.Kanji) {
@@ -140,20 +145,16 @@ func writeJmdictBinary(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) e
 	return nil
 }
 
-func writeJmdictNativeRadix(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) error {
+func writeJmdictNativeRadix(jm jmdict.JMdict, outputDir string) error {
 	tree := radix.New()
 
-	for _, word := range jm.Words {
-		entryID := idMap.GetID(word.ID)
-
-		// Add kanji
+	for index, word := range jm.Words {
 		for _, kanji := range word.Kanji {
-			tree.Add(kanji.Text, entryID)
+			tree.Add(kanji.Text, uint32(index))
 		}
 
-		// Add kana
 		for _, kana := range word.Kana {
-			tree.Add(kana.Text, entryID)
+			tree.Add(kana.Text, uint32(index))
 		}
 	}
 
@@ -168,16 +169,14 @@ func writeJmdictNativeRadix(jm jmdict.JMdict, idMap *resultIDMap, outputDir stri
 	return tree.Export(file)
 }
 
-func writeJmdictEnglishIndex(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) error {
+func writeJmdictEnglishIndex(jm jmdict.JMdict, outputDir string) error {
 	builder := index.NewBuilder()
 
-	for _, word := range jm.Words {
-		entryID := idMap.GetID(word.ID)
-
+	for index, word := range jm.Words {
 		for senseIdx, sense := range word.Sense {
 			for _, gloss := range sense.Gloss {
 				if strings.TrimSpace(gloss.Text) != "" {
-					builder.Add(gloss.Text, entryID, senseIdx)
+					builder.Add(gloss.Text, uint32(index), senseIdx)
 				}
 			}
 		}

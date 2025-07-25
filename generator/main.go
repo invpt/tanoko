@@ -57,26 +57,3 @@ func main() {
 
 	fmt.Println("Generation complete!")
 }
-
-// resultIDMap provides mapping from string keys to unique uint32 IDs
-type resultIDMap struct {
-	mapping map[string]uint32
-	nextID  uint32
-}
-
-func newResultIDMap() *resultIDMap {
-	return &resultIDMap{
-		mapping: make(map[string]uint32),
-		nextID:  0,
-	}
-}
-
-func (r *resultIDMap) GetID(key string) uint32 {
-	if id, exists := r.mapping[key]; exists {
-		return id
-	}
-	id := r.nextID
-	r.mapping[key] = id
-	r.nextID++
-	return id
-}

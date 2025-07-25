@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/invpt/tanoko/generator/encode"
 	"github.com/invpt/tanoko/generator/index"
 	"github.com/invpt/tanoko/generator/jmdict"
 	"github.com/invpt/tanoko/generator/radix"
+	"github.com/invpt/wordfreq"
 )
 
 func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) error {
@@ -39,6 +41,36 @@ func writeJmdictBinary(jm jmdict.JMdict, idMap *resultIDMap, outputDir string) e
 
 	s := encode.NewStream(file)
 	defer s.Flush()
+
+	wf, err := wordfreq.New()
+	if err != nil {
+		return fmt.Errorf("failed to initialize wordfreq: %w", err)
+	}
+
+	freqs := map[string]float64{}
+	getStringFreq := func(word string) float64 {
+		if freq, ok := freqs[word]; ok {
+			return freq
+		} else {
+			freq, err := wf.WordFrequency(word, wordfreq.LanguageJapanese, wordfreq.WordlistBest, 0.0)
+			if err != nil {
+				panic(err)
+			}
+			freqs[word] = freq
+			return freq
+		}
+	}
+	getFreq := func(word jmdict.JMdictWord) float64 {
+		if len(word.Kanji) > 0 && (word.Kanji[0].Common || !word.Kana[0].Common) {
+			return getStringFreq(word.Kanji[0].Text)
+		} else {
+			return getStringFreq(word.Kana[0].Text)
+		}
+	}
+
+	sort.Slice(jm.Words, func(i, j int) bool {
+		return getFreq(jm.Words[i]) > getFreq(jm.Words[j])
+	})
 
 	for _, word := range jm.Words {
 		b, err := s.Append()

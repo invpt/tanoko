@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/invpt/tanoko/generator/encode"
 	"github.com/invpt/tanoko/generator/index"
 	"github.com/invpt/tanoko/generator/radix"
+	"github.com/invpt/wordfreq"
 )
 
 func generateChinese(ce cedict.CEDICT, outputDir string) error {
@@ -40,6 +42,29 @@ func writeCedictBinary(ce cedict.CEDICT, idMap *resultIDMap, outputDir string) e
 
 	s := encode.NewStream(file)
 	defer s.Flush()
+
+	wf, err := wordfreq.New()
+	if err != nil {
+		return fmt.Errorf("failed to initialize wordfreq: %w", err)
+	}
+
+	freqs := map[string]float64{}
+	getFreq := func(word string) float64 {
+		if freq, ok := freqs[word]; ok {
+			return freq
+		} else {
+			freq, err := wf.WordFrequency(word, wordfreq.LanguageChinese, wordfreq.WordlistBest, 0.0)
+			if err != nil {
+				panic(err)
+			}
+			freqs[word] = freq
+			return freq
+		}
+	}
+
+	sort.Slice(ce, func(i, j int) bool {
+		return getFreq(ce[i].Simplified) > getFreq(ce[j].Simplified)
+	})
 
 	for _, word := range ce {
 		b, err := s.Append()

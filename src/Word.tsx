@@ -156,7 +156,12 @@ export const JmdictWordTitle: Component<{
           {(el) => (
             <>
               {el.kanji}
-              <rt classList={{ [styles.hiddenReading]: !showReading() }}>
+              <rt
+                classList={{
+                  [styles.hiddenReading]: !showReading(),
+                  [styles.reading]: true,
+                }}
+              >
                 {el.reading}
               </rt>
             </>

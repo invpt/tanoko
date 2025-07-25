@@ -33,6 +33,10 @@
     color: #444;
 }
 
+.reading {
+    user-select: none;
+}
+
 .hiddenReading {
     visibility: hidden;
 }

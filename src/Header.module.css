@@ -33,17 +33,17 @@ header {
     text-decoration: none;
     display: flex;
     align-items: baseline;
-    transform: translateY(-2px) rotate(-3deg);
+    transform: translateY(-5px) rotate(-3deg);
     transition: transform 0.15s;
     flex-wrap: wrap;
 }
 
 .Title:hover {
-    transform: translateY(-2px) rotate(-3deg) scale(1.15);
+    transform: translateY(-5px) rotate(-3deg) scale(1.15);
 }
 
 .Title:active {
-    transform: translateY(-2px) rotate(-3deg) scale(1.05);
+    transform: translateY(-5px) rotate(-3deg) scale(1.05);
 }
 
 .Title :nth-child(1) {

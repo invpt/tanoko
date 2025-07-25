@@ -13,7 +13,6 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
   private buffer: Uint8Array;
   private bufferOffset: number;
   private bufferEnd: number;
-  private totalOffset: number;
   private closed: boolean;
 
   constructor(stream: ReadableStream<Uint8Array>) {
@@ -21,7 +20,6 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
     this.buffer = new Uint8Array(0);
     this.bufferOffset = 0;
     this.bufferEnd = 0;
-    this.totalOffset = 0;
     this.closed = false;
   }
 
@@ -35,7 +33,6 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
           break;
         }
 
-        console.log("New stream chunk", chunkIdx++, "offset", this.totalOffset);
         const chunkBytes = await this.readBytes(length);
         yield chunkBytes;
       } catch (error) {
@@ -87,7 +84,6 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
       return null;
     }
 
-    this.totalOffset++;
     return this.buffer[this.bufferOffset++];
   }
 
@@ -109,7 +105,6 @@ export class StreamDecoder implements AsyncIterable<Uint8Array> {
         resultOffset,
       );
 
-      this.totalOffset += toCopy;
       this.bufferOffset += toCopy;
       resultOffset += toCopy;
     }

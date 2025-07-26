@@ -79,12 +79,12 @@ func writeJmdictBinary(jm jmdict.JMdict, outputDir string) error {
 	defer s.Flush()
 
 	for index, word := range jm.Words {
-		encode.Uint32(offsets, uint32(s.Offset()))
-
 		b, err := s.Append()
 		if err != nil {
 			return err
 		}
+
+		encode.Uint32(offsets, uint32(s.Offset()))
 
 		encode.Uvarint(b, uint32(index))
 
@@ -127,6 +127,10 @@ func writeJmdictBinary(jm jmdict.JMdict, outputDir string) error {
 				encode.String(b, gloss.Text)
 			}
 		}
+	}
+
+	if err := s.Flush(); err != nil {
+		return err
 	}
 
 	encode.Uint32(offsets, uint32(s.Offset()))

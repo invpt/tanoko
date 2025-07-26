@@ -72,15 +72,14 @@ func writeCedictBinary(ce cedict.CEDICT, outputDir string) error {
 	offsets := encode.NewBuffer()
 
 	s := encode.NewStream(file)
-	defer s.Flush()
 
 	for index, word := range ce {
-		encode.Uint32(offsets, uint32(s.Offset()))
-
 		b, err := s.Append()
 		if err != nil {
 			return err
 		}
+
+		encode.Uint32(offsets, uint32(s.Offset()))
 
 		encode.Uvarint(b, uint(index))
 		encode.String(b, word.Traditional)
@@ -95,6 +94,10 @@ func writeCedictBinary(ce cedict.CEDICT, outputDir string) error {
 				encode.String(b, gloss)
 			}
 		}
+	}
+
+	if err := s.Flush(); err != nil {
+		return err
 	}
 
 	encode.Uint32(offsets, uint32(s.Offset()))

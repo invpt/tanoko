@@ -43,16 +43,16 @@ func (s *Stream) flush() error {
 	var d [10]byte
 	b := Buffer{bytes: d[:0]}
 	b.varint(uint64(len(s.scratch.bytes)))
-	_, err := s.content.Write(b.bytes)
+	n, err := s.content.Write(b.bytes)
 	if err != nil {
 		return err
 	}
-	s.offset += len(b.bytes)
-	_, err = s.content.Write(s.scratch.bytes)
+	s.offset += n
+	n, err = s.content.Write(s.scratch.bytes)
 	if err != nil {
 		return err
 	}
-	s.offset += len(s.scratch.bytes)
+	s.offset += n
 	s.scratch.Reset()
 	return nil
 }

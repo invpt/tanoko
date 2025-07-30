@@ -97,7 +97,7 @@ func (idx *Index) PrintStats(name string) {
 }
 
 func (idx *Index) Export(w io.Writer) (err error) {
-	s := encode.NewStream(w)
+	s := encode.NewStream(w, true)
 	defer func() { err = errors.Join(err, s.Flush()) }()
 
 	var b *encode.Buffer

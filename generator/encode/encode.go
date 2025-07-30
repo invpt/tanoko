@@ -6,13 +6,14 @@ import (
 )
 
 type Stream struct {
-	scratch *Buffer
-	content io.Writer
-	offset  int
+	scratch    *Buffer
+	content    io.Writer
+	offset     int
+	writeSizes bool
 }
 
-func NewStream(w io.Writer) *Stream {
-	return &Stream{content: w}
+func NewStream(w io.Writer, writeSizes bool) *Stream {
+	return &Stream{content: w, writeSizes: writeSizes}
 }
 
 func (s *Stream) Offset() int {
@@ -40,15 +41,17 @@ func (s *Stream) Flush() error {
 }
 
 func (s *Stream) flush() error {
-	var d [10]byte
-	b := Buffer{bytes: d[:0]}
-	b.varint(uint64(len(s.scratch.bytes)))
-	n, err := s.content.Write(b.bytes)
-	if err != nil {
-		return err
+	if s.writeSizes {
+		var d [10]byte
+		b := Buffer{bytes: d[:0]}
+		b.varint(uint64(len(s.scratch.bytes)))
+		n, err := s.content.Write(b.bytes)
+		if err != nil {
+			return err
+		}
+		s.offset += n
 	}
-	s.offset += n
-	n, err = s.content.Write(s.scratch.bytes)
+	n, err := s.content.Write(s.scratch.bytes)
 	if err != nil {
 		return err
 	}

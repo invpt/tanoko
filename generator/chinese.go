@@ -32,6 +32,10 @@ func generateChinese(ce cedict.CEDICT, outputDir string) error {
 		return fmt.Errorf("failed to write cedict english index: %w", err)
 	}
 
+	if err := writeCedictRefRadix(ce, outputDir); err != nil {
+		return fmt.Errorf("failed to write cedict ref radix: %w", err)
+	}
+
 	return nil
 }
 
@@ -71,9 +75,9 @@ func writeCedictBinary(ce cedict.CEDICT, outputDir string) error {
 
 	offsets := encode.NewBuffer()
 
-	s := encode.NewStream(file)
+	s := encode.NewStream(file, false)
 
-	for index, word := range ce {
+	for _, word := range ce {
 		b, err := s.Append()
 		if err != nil {
 			return err
@@ -81,7 +85,6 @@ func writeCedictBinary(ce cedict.CEDICT, outputDir string) error {
 
 		encode.Uint32(offsets, uint32(s.Offset()))
 
-		encode.Uvarint(b, uint(index))
 		encode.String(b, word.Traditional)
 		encode.String(b, word.Simplified)
 
@@ -201,4 +204,29 @@ func stripSquareBrackets(text string) string {
 	}
 
 	return result
+}
+
+func writeCedictRefRadix(ce cedict.CEDICT, outputDir string) error {
+	tree := radix.New()
+
+	for index, entry := range ce {
+		entryIndex := uint32(index)
+
+		ref := entry.Traditional
+		if entry.Simplified != entry.Traditional {
+			ref += "|" + entry.Simplified
+		}
+
+		tree.Add(ref, entryIndex)
+	}
+
+	tree.PrintStats("CEDICT ref radix")
+
+	file, err := os.Create(filepath.Join(outputDir, "cedict-ref.bin"))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	return tree.Export(file)
 }

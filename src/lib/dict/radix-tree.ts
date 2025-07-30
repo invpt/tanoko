@@ -1,6 +1,6 @@
-import { Decoder } from "./decode.js";
+import { Decoder } from "./decode";
 
-class RadixTreeIndex {
+export class RadixTree {
   private decoder: Decoder;
   private rootOffset: number;
 
@@ -9,16 +9,21 @@ class RadixTreeIndex {
     this.rootOffset = rootOffset;
   }
 
-  static async load(url: string) {
-    const resp = await fetch(url);
+  static async load(handle: FileSystemFileHandle): Promise<RadixTree> {
+    const file = await handle.getFile();
+    const fileUrl = URL.createObjectURL(file);
+    try {
+      const resp = await fetch(fileUrl);
+      const data = new Uint8Array(await resp.arrayBuffer());
+      const decoder = new Decoder(data);
+      decoder.seek(data.length - 4);
+      const rootOffset = decoder.uint32();
+      decoder.seek(0);
 
-    const data = new Uint8Array(await resp.arrayBuffer());
-    const decoder = new Decoder(data);
-    decoder.seek(data.length - 4);
-    const rootOffset = decoder.uint32();
-    decoder.seek(0);
-
-    return new RadixTreeIndex(decoder, rootOffset);
+      return new RadixTree(decoder, rootOffset);
+    } finally {
+      URL.revokeObjectURL(fileUrl);
+    }
   }
 
   *search(query: string): Generator<number> {
@@ -28,31 +33,28 @@ class RadixTreeIndex {
 
     const queryBytes = new TextEncoder().encode(query);
 
-    yield* this.traverseNode(this.rootOffset, queryBytes);
+    const yielded = new Set<number>();
+    for (const id of this.traverseNode(this.rootOffset, queryBytes)) {
+      if (!yielded.has(id)) {
+        yielded.add(id);
+        yield id;
+      }
+    }
   }
 
-  private *traverseNode(
-    nodeOffset: number,
-    query: Uint8Array,
-  ): Generator<number> {
+  private *traverseNode(nodeOffset: number, query: Uint8Array): Generator<number> {
     this.decoder.seek(nodeOffset);
 
     const edge = this.decoder.byteString();
 
-    if (
-      query.length > edge.length &&
-      bytesEqual(query.slice(0, edge.length), edge)
-    ) {
+    if (query.length > edge.length && this.bytesEqual(query.slice(0, edge.length), edge)) {
       for (const child of this.iterChildren()) {
         if (query[edge.length] === child.firstByte) {
           yield* this.traverseNode(child.offset, query.slice(edge.length));
           break; // there cannot be multiple children with the same first byte
         }
       }
-    } else if (
-      edge.length >= query.length &&
-      bytesEqual(edge.slice(0, query.length), query)
-    ) {
+    } else if (edge.length >= query.length && this.bytesEqual(edge.slice(0, query.length), query)) {
       yield* this.traverseAllDescendants(nodeOffset);
     }
   }
@@ -81,18 +83,16 @@ class RadixTreeIndex {
   private *iterResults(): Generator<number> {
     yield* this.decoder.iterArray((d) => d.uvarint());
   }
-}
 
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) {
+  private bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+    if (a.length !== b.length) {
       return false;
     }
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+    return true;
   }
-  return true;
 }
-
-export { RadixTreeIndex };

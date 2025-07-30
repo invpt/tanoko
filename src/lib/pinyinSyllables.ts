@@ -1,4 +1,4 @@
-const pinyinSyllables = [
+export default [
   "a",
   "ai",
   "an",
@@ -406,55 +406,3 @@ const pinyinSyllables = [
   "zun",
   "zuo",
 ];
-
-class TrieNode {
-  children: Map<string, TrieNode>;
-  isEndOfSyllable: boolean;
-
-  constructor() {
-    this.children = new Map();
-    this.isEndOfSyllable = false;
-  }
-}
-
-const pinyinTrie = new TrieNode();
-
-function buildPinyinTrie() {
-  for (const syllable of pinyinSyllables) {
-    let currentNode = pinyinTrie;
-    for (const char of syllable) {
-      if (!currentNode.children.has(char)) {
-        currentNode.children.set(char, new TrieNode());
-      }
-      currentNode = currentNode.children.get(char)!;
-    }
-    currentNode.isEndOfSyllable = true;
-  }
-}
-
-buildPinyinTrie();
-
-export function isPinyinCandidate(query: string): boolean {
-  query = query.toLowerCase().replace(/\s+/g, "");
-  if (query.length === 0) {
-    return true;
-  }
-
-  let current = pinyinTrie;
-
-  for (let i = 0; i < query.length; i++) {
-    const char = query[i];
-    if (!current.children.has(char)) {
-      break;
-    }
-    current = current.children.get(char)!;
-
-    if (current.isEndOfSyllable) {
-      if (isPinyinCandidate(query.substring(i + 1))) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}

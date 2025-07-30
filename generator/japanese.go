@@ -29,6 +29,10 @@ func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) e
 		return fmt.Errorf("failed to write jmdict english index: %w", err)
 	}
 
+	if err := writeJmdictRefRadix(jm, outputDir); err != nil {
+		return fmt.Errorf("failed to write jmdict ref radix: %w", err)
+	}
+
 	return nil
 }
 
@@ -75,18 +79,16 @@ func writeJmdictBinary(jm jmdict.JMdict, outputDir string) error {
 
 	offsets := encode.NewBuffer()
 
-	s := encode.NewStream(file)
+	s := encode.NewStream(file, false)
 	defer s.Flush()
 
-	for index, word := range jm.Words {
+	for _, word := range jm.Words {
 		b, err := s.Append()
 		if err != nil {
 			return err
 		}
 
 		encode.Uint32(offsets, uint32(s.Offset()))
-
-		encode.Uvarint(b, uint32(index))
 
 		encode.String(b, word.ID)
 
@@ -196,4 +198,22 @@ func writeJmdictEnglishIndex(jm jmdict.JMdict, outputDir string) error {
 	defer file.Close()
 
 	return idx.Export(file)
+}
+
+func writeJmdictRefRadix(jm jmdict.JMdict, outputDir string) error {
+	tree := radix.New()
+
+	for index, word := range jm.Words {
+		tree.Add(word.ID, uint32(index))
+	}
+
+	tree.PrintStats("JMdict ref radix")
+
+	file, err := os.Create(filepath.Join(outputDir, "jmdict-ref.bin"))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	return tree.Export(file)
 }

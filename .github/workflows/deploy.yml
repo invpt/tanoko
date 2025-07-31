@@ -10,8 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2.0.1
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "pnpm"
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -39,13 +46,13 @@ jobs:
           endpoint = $ENDPOINT
           EOF
       - name: Install dependencies
-        run: bun install
+        run: pnpm install
       - name: Generate assets
         run: |
           cd generator
           go build -o generator .
           ./generator
       - name: Build
-        run: bun run build
+        run: pnpm run build
       - name: Deploy with rclone
         run: ./rclone sync dist/ r2:tanoko/

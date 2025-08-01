@@ -45,15 +45,16 @@ export class InvertedIndex {
       return;
     }
 
-    if (tokens.length === 1) {
-      yield* this.getOrderedDocuments(this.searchSingleWord(tokens[0]));
-    } else {
-      yield* this.searchMultiWord(tokens);
+    const yielded = new Set<number>();
+    for (const id of this.searchMultiWord(tokens)) {
+      if (!yielded.has(id)) {
+        yielded.add(id);
+        yield id;
+      }
     }
   }
 
   private tokenize(text: string): string[] {
-    const removeDiacritics = (char: string): string => DIACRITIC_MAP[char] || char;
     const isEnglishChar = (char: string): boolean => {
       const code = char.charCodeAt(0);
       return (
@@ -65,10 +66,8 @@ export class InvertedIndex {
     let currentToken = "";
 
     for (const char of text) {
-      const normalized = removeDiacritics(char);
-
-      if (isEnglishChar(normalized)) {
-        currentToken += normalized.toLowerCase();
+      if (isEnglishChar(char)) {
+        currentToken += char.toLowerCase();
       } else if (currentToken.length > 0 && char !== "'" && char !== ".") {
         tokens.push(currentToken);
         currentToken = "";
@@ -82,32 +81,147 @@ export class InvertedIndex {
     return tokens;
   }
 
-  private findWordEntry(word: string): { offset: number; length: number } | null {
-    const wordBytes = new TextEncoder().encode(word);
+  private *searchMultiWord(tokens: string[]): Generator<number, undefined, undefined> {
+    // Separate tokens into common and non-common words
+    const nonCommonTokens: string[] = [];
+    let commonBitmask = 0;
 
+    for (const token of tokens) {
+      const commonWordIndex = this.commonWords.findIndex((w) => w === token);
+      if (commonWordIndex !== -1) {
+        commonBitmask |= 1 << commonWordIndex;
+      } else {
+        nonCommonTokens.push(token);
+      }
+    }
+
+    // Split non-common tokens: all but last are exact, last is prefix
+    const exactTokens = nonCommonTokens.slice(0, -1);
+    const prefixToken =
+      nonCommonTokens.length > 0 ? nonCommonTokens[nonCommonTokens.length - 1] : undefined;
+
+    // Get candidates from each source
+    let candidates: Generator<
+      { docId: number; senses: number; length: number; isPrefix: boolean },
+      undefined,
+      undefined
+    >;
+
+    if (nonCommonTokens.length === 0) {
+      // Only common words - search them as exact matches
+      candidates = this.intersectExactMatches(
+        tokens.map((token) => this.searchWord(token, "exact")),
+      );
+    } else if (exactTokens.length === 0) {
+      // Only one token (prefix)
+      candidates = this.searchWord(prefixToken!, "both");
+    } else if (prefixToken === undefined) {
+      // Only exact tokens
+      candidates = this.intersectExactMatches(
+        exactTokens.map((token) => this.searchWord(token, "exact")),
+      );
+    } else {
+      // Both exact and prefix tokens - intersect them
+      const exactCandidates = this.intersectExactMatches(
+        exactTokens.map((token) => this.searchWord(token, "exact")),
+      );
+      candidates = this.intersectWithPrefix(exactCandidates, prefixToken);
+    }
+
+    // Filter by common words if needed
+    const filteredCandidates =
+      commonBitmask !== 0 ? this.filterByCommonWords(candidates, commonBitmask) : candidates;
+
+    // Convert to array and sort
+    const matchArr = [...filteredCandidates];
+    this.sortMatches(matchArr);
+
+    for (const match of matchArr) {
+      yield match.docId;
+    }
+  }
+
+  private *intersectWithPrefix(
+    exactCandidates: Generator<
+      { docId: number; senses: number; length: number; isPrefix: boolean },
+      undefined,
+      undefined
+    >,
+    prefixToken: string,
+  ): Generator<
+    { docId: number; senses: number; length: number; isPrefix: boolean },
+    undefined,
+    undefined
+  > {
+    const exactMatches = [...exactCandidates];
+    if (exactMatches.length === 0) return;
+
+    const prefixMatches = [...this.searchWord(prefixToken, "both")];
+
+    // Sort prefix matches by docId (exactMatches should already be sorted that way)
+    prefixMatches.sort((a, b) => a.docId - b.docId);
+
+    let exactIndex = 0;
+    let prefixIndex = 0;
+
+    while (exactIndex < exactMatches.length && prefixIndex < prefixMatches.length) {
+      const exactMatch = exactMatches[exactIndex];
+      const prefixMatch = prefixMatches[prefixIndex];
+
+      if (exactMatch.docId === prefixMatch.docId) {
+        // Check if senses overlap
+        const overlap = exactMatch.senses & prefixMatch.senses;
+        if (overlap !== 0) {
+          yield {
+            docId: exactMatch.docId,
+            senses: overlap,
+            length: Math.max(exactMatch.length, prefixMatch.length),
+            isPrefix: prefixMatch.isPrefix,
+          };
+        }
+        exactIndex++;
+        prefixIndex++;
+      } else if (exactMatch.docId < prefixMatch.docId) {
+        exactIndex++;
+      } else {
+        prefixIndex++;
+      }
+    }
+  }
+
+  private binarySearchWord(
+    target: Uint8Array,
+    mode: "exact" | "prefix",
+  ): { found: boolean; index: number; offset?: number; length?: number } {
     const numEntries = this.indexData.length / 4;
+    const indexDecoder = new Decoder(this.indexData);
+    const entriesDecoder = new Decoder(this.entriesData);
 
     let left = 0;
     let right = numEntries - 1;
-
-    const indexDecoder = new Decoder(this.indexData);
-    const entriesDecoder = new Decoder(this.entriesData);
+    let result = { found: false, index: -1 };
 
     while (left <= right) {
       const mid = Math.floor((left + right) / 2);
 
       indexDecoder.seek(mid * 4);
       const packed = indexDecoder.uint32();
-      const offset = packed & 0xffffff; // Lower 24 bits for offset
-      const wordLength = (packed >>> 24) & 0xff; // Upper 8 bits for length
+      const offset = packed & 0xffffff;
+      const wordLength = (packed >>> 24) & 0xff;
 
       entriesDecoder.seek(offset);
       const indexWordBytes = entriesDecoder.byteString(wordLength);
 
-      const comparison = this.compareBytes(wordBytes, indexWordBytes);
+      const comparison = this.compareBytes(target, indexWordBytes, mode);
 
       if (comparison === 0) {
-        return { offset, length: wordLength };
+        if (mode === "exact") {
+          return { found: true, index: mid, offset, length: wordLength };
+        } else {
+          // For prefix search, find the first match
+          result = { found: true, index: mid };
+          right = mid - 1;
+        }
       } else if (comparison < 0) {
         right = mid - 1;
       } else {
@@ -115,10 +229,10 @@ export class InvertedIndex {
       }
     }
 
-    return null;
+    return result;
   }
 
-  private compareBytes(a: Uint8Array, b: Uint8Array): number {
+  private compareBytes(a: Uint8Array, b: Uint8Array, mode: "exact" | "prefix" = "exact"): number {
     const minLength = Math.min(a.length, b.length);
 
     for (let i = 0; i < minLength; i++) {
@@ -126,68 +240,148 @@ export class InvertedIndex {
       if (a[i] > b[i]) return 1;
     }
 
+    if (mode === "prefix") {
+      // For prefix mode, if we've matched the entire prefix, it's a match
+      return a.length <= b.length ? 0 : 1;
+    }
+
+    // For exact mode, lengths must match
     if (a.length < b.length) return -1;
     if (a.length > b.length) return 1;
     return 0;
   }
 
-  private *searchSingleWord(
+  private *searchWord(
     word: string,
-  ): Generator<{ docId: number; senses: number; length: number }, undefined, undefined> {
-    const entry = this.findWordEntry(word);
-    if (!entry) {
+    mode: "exact" | "prefix" | "both",
+  ): Generator<
+    { docId: number; senses: number; length: number; isPrefix: boolean },
+    undefined,
+    undefined
+  > {
+    const wordBytes = new TextEncoder().encode(word);
+    const result = this.binarySearchWord(wordBytes, "prefix");
+
+    if (!result.found) {
       return;
     }
 
-    const decoder = new Decoder(this.entriesData);
-    decoder.seek(entry.offset + entry.length); // Skip the word itself
+    const numEntries = this.indexData.length / 4;
+    const indexDecoder = new Decoder(this.indexData);
+    const entriesDecoder = new Decoder(this.entriesData);
 
-    yield* decoder.iterArray((d) => ({
-      docId: d.uvarint(),
-      senses: d.uint8(),
-      length: d.uint8(),
-    }));
-  }
+    // Iterate from the first match onwards while the prefix matches
+    for (let i = result.index; i < numEntries; i++) {
+      indexDecoder.seek(i * 4);
+      const packed = indexDecoder.uint32();
+      const offset = packed & 0xffffff;
+      const wordLength = (packed >>> 24) & 0xff;
 
-  private *searchMultiWord(tokens: string[]): Generator<number, undefined, undefined> {
-    const commonWords = this.commonWords;
-    const nonCommonTokens: string[] = [];
-    const commonTokenBitmasks: number[] = [];
+      entriesDecoder.seek(offset);
+      const indexWordBytes = entriesDecoder.byteString(wordLength);
 
-    for (const token of tokens) {
-      const commonWordIndex = commonWords.findIndex((w) => w === token);
-      if (commonWordIndex !== -1) {
-        commonTokenBitmasks.push(1 << commonWordIndex);
-      } else {
-        nonCommonTokens.push(token);
+      // Check if this word still starts with our prefix
+      if (!this.startsWithPrefix(indexWordBytes, wordBytes)) {
+        break;
+      }
+
+      const isExactMatch = indexWordBytes.length === wordBytes.length;
+
+      // Handle different modes
+      if (mode === "exact" && !isExactMatch) {
+        continue;
+      }
+      if (mode === "prefix" && isExactMatch) {
+        continue;
+      }
+
+      // For "both" mode or matching mode, yield the documents
+      entriesDecoder.seek(offset + wordLength);
+      for (const doc of entriesDecoder.iterArray((d) => ({
+        docId: d.uvarint(),
+        senses: d.uint8(),
+        length: d.uint8(),
+      }))) {
+        yield { ...doc, isPrefix: !isExactMatch };
+      }
+
+      // For exact mode, stop after first exact match
+      if (mode === "exact" && isExactMatch) {
+        break;
       }
     }
+  }
 
-    if (nonCommonTokens.length === 0) {
-      yield* this.getOrderedDocuments(
-        this.intersect(tokens.map((token) => this.searchSingleWord(token))),
-      );
-      return;
+  private startsWithPrefix(word: Uint8Array, prefix: Uint8Array): boolean {
+    if (prefix.length > word.length) return false;
+
+    for (let i = 0; i < prefix.length; i++) {
+      if (word[i] !== prefix[i]) return false;
     }
 
-    const candidates = this.intersect(nonCommonTokens.map((token) => this.searchSingleWord(token)));
+    return true;
+  }
 
-    if (commonTokenBitmasks.length > 0) {
-      const combinedBitmask = commonTokenBitmasks.reduce((acc, mask) => acc | mask, 0);
+  private sortMatches(
+    matches: Array<{ docId: number; senses: number; length: number; isPrefix?: boolean }>,
+  ) {
+    matches.sort((a, b) => {
+      // Exact matches come before prefix matches
+      if ((a.isPrefix ?? false) !== (b.isPrefix ?? false)) {
+        return a.isPrefix ? 1 : -1;
+      }
 
-      yield* this.getOrderedDocuments(
-        candidates.filter((match) => this.checkCommonWordBitmask(match.docId, combinedBitmask)),
-      );
-    } else {
-      yield* this.getOrderedDocuments(candidates);
+      const aLowestSense = this.getLowestSenseIndex(a.senses);
+      const bLowestSense = this.getLowestSenseIndex(b.senses);
+
+      if (aLowestSense !== bLowestSense) {
+        return aLowestSense - bLowestSense;
+      }
+
+      if (a.length !== b.length) {
+        return a.length - b.length;
+      }
+
+      return a.docId - b.docId;
+    });
+  }
+
+  private *filterByCommonWords(
+    matches: IteratorObject<
+      { docId: number; senses: number; length: number; isPrefix: boolean },
+      undefined,
+      undefined
+    >,
+    requiredBitmask: number,
+  ): Generator<
+    { docId: number; senses: number; length: number; isPrefix: boolean },
+    undefined,
+    undefined
+  > {
+    for (const match of matches) {
+      if (this.checkCommonWordBitmask(match.docId, requiredBitmask)) {
+        yield match;
+      }
     }
   }
 
-  private *intersect(
-    gens: Generator<{ docId: number; senses: number; length: number }, undefined, undefined>[],
-  ): Generator<{ docId: number; senses: number; length: number }, undefined, undefined> {
+  private *intersectExactMatches(
+    gens: Generator<
+      { docId: number; senses: number; length: number; isPrefix: boolean },
+      undefined,
+      undefined
+    >[],
+  ): Generator<
+    { docId: number; senses: number; length: number; isPrefix: boolean },
+    undefined,
+    undefined
+  > {
     if (gens.length === 0) {
       return;
+    }
+
+    if (gens.length === 1) {
+      yield* gens[0];
     }
 
     const values = gens.map((iter) => iter.next());
@@ -218,6 +412,7 @@ export class InvertedIndex {
             docId: minDocId,
             senses: commonSenses,
             length: maxLength,
+            isPrefix: false,
           };
         }
 
@@ -231,38 +426,6 @@ export class InvertedIndex {
           }
         }
       }
-    }
-  }
-
-  private *getOrderedDocuments(
-    matches: IteratorObject<
-      { docId: number; senses: number; length: number },
-      undefined,
-      undefined
-    >,
-  ): Generator<number, undefined, undefined> {
-    const allMatches: { docId: number; senses: number; length: number }[] = [];
-    for (const match of matches) {
-      allMatches.push(match);
-    }
-
-    allMatches.sort((a, b) => {
-      const aLowestSense = this.getLowestSenseIndex(a.senses);
-      const bLowestSense = this.getLowestSenseIndex(b.senses);
-
-      if (aLowestSense !== bLowestSense) {
-        return aLowestSense - bLowestSense;
-      }
-
-      if (a.length !== b.length) {
-        return a.length - b.length;
-      }
-
-      return a.docId - b.docId;
-    });
-
-    for (const match of allMatches) {
-      yield match.docId;
     }
   }
 
@@ -283,64 +446,3 @@ export class InvertedIndex {
     return (docBitmask & requiredBitmask) === requiredBitmask;
   }
 }
-
-const DIACRITIC_MAP: Record<string, string> = {
-  à: "a",
-  á: "a",
-  â: "a",
-  ã: "a",
-  ä: "a",
-  å: "a",
-  æ: "a",
-  ç: "c",
-  è: "e",
-  é: "e",
-  ê: "e",
-  ë: "e",
-  ì: "i",
-  í: "i",
-  î: "i",
-  ï: "i",
-  ñ: "n",
-  ò: "o",
-  ó: "o",
-  ô: "o",
-  õ: "o",
-  ö: "o",
-  ø: "o",
-  ù: "u",
-  ú: "u",
-  û: "u",
-  ü: "u",
-  ý: "y",
-  ÿ: "y",
-  À: "A",
-  Á: "A",
-  Â: "A",
-  Ã: "A",
-  Ä: "A",
-  Å: "A",
-  Æ: "A",
-  Ç: "C",
-  È: "E",
-  É: "E",
-  Ê: "E",
-  Ë: "E",
-  Ì: "I",
-  Í: "I",
-  Î: "I",
-  Ï: "I",
-  Ñ: "N",
-  Ò: "O",
-  Ó: "O",
-  Ô: "O",
-  Õ: "O",
-  Ö: "O",
-  Ø: "O",
-  Ù: "U",
-  Ú: "U",
-  Û: "U",
-  Ü: "U",
-  Ý: "Y",
-  Ÿ: "Y",
-};

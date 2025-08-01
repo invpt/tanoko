@@ -1,5 +1,6 @@
 import { type JMdictWord, type Kanjidic2Character } from "@scriptin/jmdict-simplified-types";
-import { FileSystem, ProgressTracker } from "./file-system";
+import { StorageFactory } from "./storage-factory";
+import { FileStorage } from "./storage-interfaces";
 
 import cedictEnglishUrl from "../../assets/gen/cedict-english.bin?url";
 import cedictNativeUrl from "../../assets/gen/cedict-native.bin?url";
@@ -13,6 +14,7 @@ import { Decoder } from "./decode";
 import { WordLoader } from "./word-loader";
 import { RadixTree } from "./radix-tree";
 import { InvertedIndex } from "./inverted-index";
+import { ProgressTracker } from "./progress-tracker";
 
 export type { JMdictWord, Kanjidic2Character };
 
@@ -36,7 +38,7 @@ export enum QueryType {
 }
 
 class Dictionary {
-  private fileSystem = new FileSystem("dictionaries");
+  private storage: FileStorage | undefined;
   private initialized = false;
 
   private jmdictLoader: WordLoader<DictionaryEntry> | undefined;
@@ -50,7 +52,7 @@ class Dictionary {
 
   private async initialize(): Promise<void> {
     if (this.initialized) return;
-    await this.fileSystem.initialize();
+    this.storage = await StorageFactory.createStorage("dictionaries");
     this.initialized = true;
   }
 
@@ -79,21 +81,25 @@ class Dictionary {
     language: Language,
     progressTracker?: ProgressTracker,
   ): Promise<WordLoader<DictionaryEntry>> {
+    if (!this.storage) {
+      throw new Error("Dictionary not initialized");
+    }
+
     const isJapanese = language === Language.Japanese;
 
     if (isJapanese) {
       return (this.jmdictLoader ??= await WordLoader.load(
         ...(await Promise.all([
-          this.fileSystem.ensureFileExists("jmdict.bin", jmdictUrl, progressTracker),
-          this.fileSystem.ensureFileExists("jmdict-offsets.bin", jmdictOffsetsUrl, progressTracker),
+          this.storage.ensureFileExists("jmdict.bin", jmdictUrl, progressTracker),
+          this.storage.ensureFileExists("jmdict-offsets.bin", jmdictOffsetsUrl, progressTracker),
         ])),
         parseJmdictEntry,
       ));
     } else {
       return (this.cedictLoader ??= await WordLoader.load(
         ...(await Promise.all([
-          this.fileSystem.ensureFileExists("cedict.bin", cedictUrl, progressTracker),
-          this.fileSystem.ensureFileExists("cedict-offsets.bin", cedictOffsetsUrl, progressTracker),
+          this.storage.ensureFileExists("cedict.bin", cedictUrl, progressTracker),
+          this.storage.ensureFileExists("cedict-offsets.bin", cedictOffsetsUrl, progressTracker),
         ])),
         parseCedictEntry,
       ));
@@ -103,15 +109,19 @@ class Dictionary {
   private async getQueryEngine(
     language: Language,
     queryType: QueryType,
-    progressTracker?: any,
+    progressTracker?: ProgressTracker,
   ): Promise<RadixTree | InvertedIndex> {
+    if (!this.storage) {
+      throw new Error("Dictionary not initialized");
+    }
+
     const isJapanese = language === Language.Japanese;
     const useEnglish = queryType === QueryType.English;
 
     if (isJapanese) {
       if (useEnglish) {
         return (this.jmdictEnglishQuery ??= await InvertedIndex.load(
-          await this.fileSystem.ensureFileExists(
+          await this.storage.ensureFileExists(
             "jmdict-english.bin",
             jmdictEnglishUrl,
             progressTracker,
@@ -119,7 +129,7 @@ class Dictionary {
         ));
       } else {
         return (this.jmdictNativeQuery ??= await RadixTree.load(
-          await this.fileSystem.ensureFileExists(
+          await this.storage.ensureFileExists(
             "jmdict-native.bin",
             jmdictNativeUrl,
             progressTracker,
@@ -129,7 +139,7 @@ class Dictionary {
     } else {
       if (useEnglish) {
         return (this.cedictEnglishQuery ??= await InvertedIndex.load(
-          await this.fileSystem.ensureFileExists(
+          await this.storage.ensureFileExists(
             "cedict-english.bin",
             cedictEnglishUrl,
             progressTracker,
@@ -137,7 +147,7 @@ class Dictionary {
         ));
       } else {
         return (this.cedictNativeQuery ??= await RadixTree.load(
-          await this.fileSystem.ensureFileExists(
+          await this.storage.ensureFileExists(
             "cedict-native.bin",
             cedictNativeUrl,
             progressTracker,
@@ -148,7 +158,9 @@ class Dictionary {
   }
 
   async clearData(): Promise<void> {
-    await this.fileSystem.clearAll();
+    if (this.storage) {
+      await this.storage.clearAll();
+    }
 
     // Clear cached instances
     this.jmdictLoader = undefined;
@@ -158,6 +170,7 @@ class Dictionary {
     this.cedictEnglishQuery = undefined;
     this.cedictNativeQuery = undefined;
 
+    this.storage = undefined;
     this.initialized = false;
   }
 }

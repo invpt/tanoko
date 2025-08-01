@@ -1,4 +1,5 @@
 import { Decoder, StreamDecoder } from "./decode";
+import { FileReader } from "./storage-interfaces";
 
 export class InvertedIndex {
   private entriesData: Uint8Array;
@@ -18,36 +19,24 @@ export class InvertedIndex {
     this.commonWords = commonWords;
   }
 
-  static async load(handle: FileSystemFileHandle): Promise<InvertedIndex> {
-    const file = await handle.getFile();
-    const fileUrl = URL.createObjectURL(file);
-    try {
-      const response = await fetch(fileUrl);
-      const stream = response.body;
-      if (!stream) {
-        throw new Error("Failed to get response stream");
-      }
+  static async load(fileReader: FileReader): Promise<InvertedIndex> {
+    const decoder = new StreamDecoder(fileReader.stream());
+    const chunks: Uint8Array[] = [];
 
-      const decoder = new StreamDecoder(stream);
-      const chunks: Uint8Array[] = [];
-
-      for await (const chunk of decoder) {
-        chunks.push(chunk);
-      }
-
-      if (chunks.length !== 4) {
-        throw new Error(`Expected 4 chunks, got ${chunks.length}`);
-      }
-
-      const [entriesData, indexData, commonWordsData, commonWordsTableData] = chunks;
-
-      const d = new Decoder(commonWordsData);
-      const commonWords = [...d.iterArray((d) => d.string())];
-
-      return new InvertedIndex(entriesData, indexData, commonWordsTableData, commonWords);
-    } finally {
-      URL.revokeObjectURL(fileUrl);
+    for await (const chunk of decoder) {
+      chunks.push(chunk);
     }
+
+    if (chunks.length !== 4) {
+      throw new Error(`Expected 4 chunks, got ${chunks.length}`);
+    }
+
+    const [entriesData, indexData, commonWordsData, commonWordsTableData] = chunks;
+
+    const d = new Decoder(commonWordsData);
+    const commonWords = [...d.iterArray((d) => d.string())];
+
+    return new InvertedIndex(entriesData, indexData, commonWordsTableData, commonWords);
   }
 
   *search(query: string): Generator<number, undefined, undefined> {

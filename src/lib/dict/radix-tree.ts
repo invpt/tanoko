@@ -1,4 +1,5 @@
 import { Decoder } from "./decode";
+import { FileReader } from "./storage-interfaces";
 
 export class RadixTree {
   private decoder: Decoder;
@@ -9,21 +10,15 @@ export class RadixTree {
     this.rootOffset = rootOffset;
   }
 
-  static async load(handle: FileSystemFileHandle): Promise<RadixTree> {
-    const file = await handle.getFile();
-    const fileUrl = URL.createObjectURL(file);
-    try {
-      const resp = await fetch(fileUrl);
-      const data = new Uint8Array(await resp.arrayBuffer());
-      const decoder = new Decoder(data);
-      decoder.seek(data.length - 4);
-      const rootOffset = decoder.uint32();
-      decoder.seek(0);
+  static async load(fileReader: FileReader): Promise<RadixTree> {
+    const buffer = await fileReader.read();
+    const data = new Uint8Array(buffer);
+    const decoder = new Decoder(data);
+    decoder.seek(data.length - 4);
+    const rootOffset = decoder.uint32();
+    decoder.seek(0);
 
-      return new RadixTree(decoder, rootOffset);
-    } finally {
-      URL.revokeObjectURL(fileUrl);
-    }
+    return new RadixTree(decoder, rootOffset);
   }
 
   *search(query: string): Generator<number> {

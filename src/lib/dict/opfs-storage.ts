@@ -1,74 +1,35 @@
-export class ProgressTracker {
-  private totalBytes = 0;
-  private lastReportedBytes = 0;
-  private readonly chunkSize: number;
+import { FileStorage, FileReader } from "./storage-interfaces";
+import { BlobFileReader } from "./blob-file-reader";
+import { ProgressTracker } from "./progress-tracker";
 
-  constructor(
-    private onProgress?: (bytesDownloaded: number) => void,
-    chunkSize: number = 1024 * 100, // Default 100KB chunks
-  ) {
-    this.chunkSize = chunkSize;
-  }
-
-  /**
-   * Add bytes to the total and potentially trigger a progress update.
-   */
-  addBytes(bytes: number): void {
-    this.totalBytes += bytes;
-
-    if (this.shouldReport()) {
-      this.reportProgress();
-    }
-  }
-
-  /**
-   * Force a final progress report, useful when download is complete.
-   */
-  finish(): void {
-    if (this.totalBytes !== this.lastReportedBytes) {
-      this.reportProgress();
-    }
-  }
-
-  /**
-   * Get the current total bytes without triggering a progress report.
-   */
-  getCurrentBytes(): number {
-    return this.totalBytes;
-  }
-
-  private shouldReport(): boolean {
-    return this.totalBytes - this.lastReportedBytes >= this.chunkSize;
-  }
-
-  private reportProgress(): void {
-    if (this.onProgress) {
-      this.onProgress(this.totalBytes);
-      this.lastReportedBytes = this.totalBytes;
-    }
-  }
-}
-
-export class FileSystem {
+/**
+ * OPFS (Origin Private File System) implementation of FileStorage.
+ * Uses the browser's private file system for efficient file storage and access.
+ */
+export class OPFSStorage implements FileStorage {
   private static readonly CACHE_VERSION = "v1";
-
   private dictDir: FileSystemDirectoryHandle | undefined;
 
   constructor(private dirName: string) {}
 
   async initialize(): Promise<void> {
     if (this.dictDir) return;
-    const opfsRoot = await navigator.storage.getDirectory();
-    this.dictDir = await opfsRoot.getDirectoryHandle(this.dirName, { create: true });
+
+    try {
+      const opfsRoot = await navigator.storage.getDirectory();
+      this.dictDir = await opfsRoot.getDirectoryHandle(this.dirName, { create: true });
+    } catch (error) {
+      throw new Error(`Failed to initialize OPFS: ${error}`);
+    }
   }
 
   async ensureFileExists(
     filename: string,
     url: string,
     progressTracker?: ProgressTracker,
-  ): Promise<FileSystemFileHandle> {
+  ): Promise<FileReader> {
     if (!this.dictDir) {
-      throw new Error("FileSystem not initialized");
+      throw new Error("OPFSStorage not initialized");
     }
 
     let needsDownload = false;
@@ -82,7 +43,7 @@ export class FileSystem {
         const metadataFile = await metadataHandle.getFile();
         const metadata = await metadataFile.text();
         const [storedVersion, storedUrl] = metadata.split("\n");
-        needsDownload = storedVersion !== FileSystem.CACHE_VERSION || storedUrl !== url;
+        needsDownload = storedVersion !== OPFSStorage.CACHE_VERSION || storedUrl !== url;
       } else {
         needsDownload = true;
       }
@@ -95,14 +56,21 @@ export class FileSystem {
       await this.saveMetadata(filename, url);
     }
 
-    return this.dictDir.getFileHandle(filename);
+    return this.getFileReader(filename);
   }
 
-  async getFileHandle(filename: string): Promise<FileSystemFileHandle> {
+  private async getFileReader(filename: string): Promise<FileReader> {
     if (!this.dictDir) {
-      throw new Error("FileSystem not initialized");
+      throw new Error("OPFSStorage not initialized");
     }
-    return this.dictDir.getFileHandle(filename);
+
+    try {
+      const fileHandle = await this.dictDir.getFileHandle(filename);
+      const file = await fileHandle.getFile();
+      return new BlobFileReader(file);
+    } catch (error) {
+      throw new Error(`File not found: ${filename}`);
+    }
   }
 
   async clearAll(): Promise<void> {
@@ -155,7 +123,7 @@ export class FileSystem {
       create: true,
     });
     const writer = await metadataHandle.createWritable();
-    await writer.write(`${FileSystem.CACHE_VERSION}\n${url}`);
+    await writer.write(`${OPFSStorage.CACHE_VERSION}\n${url}`);
     await writer.close();
   }
 }

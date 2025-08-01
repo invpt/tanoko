@@ -1,31 +1,30 @@
 import { Decoder } from "./decode";
+import { FileReader } from "./storage-interfaces";
 
 export class WordLoader<T> {
-  private dataFile: File;
+  private dataReader: FileReader;
   private offsetsDecoder: Decoder;
   private parseFunction: (decoder: Decoder) => T | undefined;
 
   private constructor(
-    dataFile: File,
+    dataReader: FileReader,
     offsetsDecoder: Decoder,
     parseFunction: (decoder: Decoder) => T | undefined,
   ) {
-    this.dataFile = dataFile;
+    this.dataReader = dataReader;
     this.offsetsDecoder = offsetsDecoder;
     this.parseFunction = parseFunction;
   }
 
   static async load<T>(
-    dataHandle: FileSystemFileHandle,
-    offsetsHandle: FileSystemFileHandle,
+    dataReader: FileReader,
+    offsetsReader: FileReader,
     parseFunction: (decoder: Decoder) => T | undefined,
   ): Promise<WordLoader<T>> {
-    const offsetsFile = await offsetsHandle.getFile();
-    const offsetsBuffer = await offsetsFile.arrayBuffer();
+    const offsetsBuffer = await offsetsReader.read();
     const offsetsDecoder = new Decoder(new Uint8Array(offsetsBuffer));
 
-    const dataFile = await dataHandle.getFile();
-    return new WordLoader(dataFile, offsetsDecoder, parseFunction);
+    return new WordLoader(dataReader, offsetsDecoder, parseFunction);
   }
 
   async loadEntry(id: number): Promise<T | undefined> {
@@ -35,8 +34,7 @@ export class WordLoader<T> {
 
     if (length <= 0) return undefined;
 
-    const slice = this.dataFile.slice(startOffset, endOffset);
-    const buffer = await slice.arrayBuffer();
+    const buffer = await this.dataReader.read(startOffset, endOffset);
 
     return this.parseFunction(new Decoder(new Uint8Array(buffer)));
   }

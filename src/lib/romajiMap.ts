@@ -142,6 +142,8 @@ const romajiMap: Record<string, string> = {
   rya: "りゃ",
   ryu: "りゅ",
   ryo: "りょ",
+
+  "-": "ー",
 };
 
 export default romajiMap;

@@ -2,28 +2,64 @@ import { Language, QueryType } from "./dict";
 import pinyinSyllables from "./pinyinSyllables";
 import romajiMap from "./romajiMap";
 
+const europeanQuotes = [" “", "” "] as const;
+const cornerQuotes = ["「", " 」"] as const;
+
 export function processQuery(
   query: string,
   language: Language,
-): { query: string; queryType: QueryType; transformation?: string } {
+): [
+  { query: string; queryType: QueryType; kind: string; brackets: readonly [string, string] },
+  (
+    | { query: string; queryType: QueryType; kind: string; brackets: readonly [string, string] }
+    | undefined
+  ),
+] {
+  if (query.length === 0) {
+    return [
+      { query: "", queryType: QueryType.English, kind: "English", brackets: europeanQuotes },
+      undefined,
+    ];
+  }
+
   const cjk = processCjk(query);
   if (cjk != null) {
-    return { query: cjk, queryType: QueryType.Native };
+    return [
+      {
+        query: cjk,
+        queryType: QueryType.Native,
+        kind: language === Language.Chinese ? "Chinese" : "Japanese",
+        brackets: language === Language.Chinese ? europeanQuotes : cornerQuotes,
+      },
+      undefined,
+    ];
   }
 
   if (language == Language.Chinese) {
     const pinyin = processPinyin(query);
     if (pinyin != null) {
-      return { query: pinyin, queryType: QueryType.Native, transformation: "pinyin" };
+      return [
+        { query: pinyin, queryType: QueryType.Native, kind: "pinyin", brackets: europeanQuotes },
+        { query: query, queryType: QueryType.English, kind: "English", brackets: europeanQuotes },
+      ];
     } else {
-      return { query: query, queryType: QueryType.English };
+      return [
+        { query: query, queryType: QueryType.English, kind: "English", brackets: europeanQuotes },
+        undefined,
+      ];
     }
   } else {
     const kana = processRomaji(query);
     if (kana != null) {
-      return { query: kana, queryType: QueryType.Native, transformation: "romaji" };
+      return [
+        { query: kana, queryType: QueryType.Native, kind: "kana", brackets: cornerQuotes },
+        { query: query, queryType: QueryType.English, kind: "English", brackets: europeanQuotes },
+      ];
     } else {
-      return { query: query, queryType: QueryType.English };
+      return [
+        { query: query, queryType: QueryType.English, kind: "English", brackets: europeanQuotes },
+        undefined,
+      ];
     }
   }
 }

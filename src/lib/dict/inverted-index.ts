@@ -1,6 +1,13 @@
 import { Decoder, StreamDecoder } from "./decode";
 import { FileReader } from "./storage-interfaces";
 
+interface SearchMatch {
+  docId: number;
+  senses: number;
+  length: number;
+  isPrefix: boolean;
+}
+
 export class InvertedIndex {
   private entriesData: Uint8Array;
   private indexData: Uint8Array;
@@ -41,32 +48,35 @@ export class InvertedIndex {
 
   *search(query: string): Generator<number, undefined, undefined> {
     const tokens = this.tokenize(query);
-    if (tokens.length === 0) {
-      return;
+    if (tokens.length === 0) return;
+
+    let { commonTokens, nonCommonTokens } = this.categorizeTokens(tokens);
+    if (nonCommonTokens.length == 0) {
+      nonCommonTokens = commonTokens;
+      commonTokens = [];
     }
 
-    const yielded = new Set<number>();
-    for (const id of this.searchMultiWord(tokens)) {
-      if (!yielded.has(id)) {
-        yielded.add(id);
-        yield id;
-      }
+    const commonWordsMask = this.buildCommonWordsMask(commonTokens);
+    const matches = this.searchWords(nonCommonTokens, commonWordsMask);
+    if (matches.length === 0) return;
+
+    this.sortMatches(matches);
+
+    for (const match of matches) {
+      yield match.docId;
     }
   }
 
   private tokenize(text: string): string[] {
-    const isEnglishChar = (char: string): boolean => {
-      const code = char.charCodeAt(0);
-      return (
-        (code >= 97 && code <= 122) || (code >= 65 && code <= 90) || (code >= 48 && code <= 57)
-      );
-    };
-
-    const tokens = [];
+    const tokens: string[] = [];
     let currentToken = "";
 
     for (const char of text) {
-      if (isEnglishChar(char)) {
+      const code = char.charCodeAt(0);
+      const isAlphaNum =
+        (code >= 97 && code <= 122) || (code >= 65 && code <= 90) || (code >= 48 && code <= 57);
+
+      if (isAlphaNum) {
         currentToken += char.toLowerCase();
       } else if (currentToken.length > 0 && char !== "'" && char !== ".") {
         tokens.push(currentToken);
@@ -81,148 +91,113 @@ export class InvertedIndex {
     return tokens;
   }
 
-  private *searchMultiWord(tokens: string[]): Generator<number, undefined, undefined> {
-    // Separate tokens into common and non-common words
+  private categorizeTokens(tokens: string[]): {
+    commonTokens: string[];
+    nonCommonTokens: string[];
+  } {
+    const commonTokens: string[] = [];
     const nonCommonTokens: string[] = [];
-    let commonBitmask = 0;
 
     for (const token of tokens) {
-      const commonWordIndex = this.commonWords.findIndex((w) => w === token);
-      if (commonWordIndex !== -1) {
-        commonBitmask |= 1 << commonWordIndex;
+      if (this.commonWords.includes(token)) {
+        commonTokens.push(token);
       } else {
         nonCommonTokens.push(token);
       }
     }
 
-    // Split non-common tokens: all but last are exact, last is prefix
-    const exactTokens = nonCommonTokens.slice(0, -1);
-    const prefixToken =
-      nonCommonTokens.length > 0 ? nonCommonTokens[nonCommonTokens.length - 1] : undefined;
+    return { commonTokens, nonCommonTokens };
+  }
 
-    // Get candidates from each source
-    let candidates: Generator<
-      { docId: number; senses: number; length: number; isPrefix: boolean },
-      undefined,
-      undefined
-    >;
-
-    if (nonCommonTokens.length === 0) {
-      // Only common words - search them as exact matches
-      candidates = this.intersectExactMatches(
-        tokens.map((token) => this.searchWord(token, "exact")),
-      );
-    } else if (exactTokens.length === 0) {
-      // Only one token (prefix)
-      candidates = this.searchWord(prefixToken!, "both");
-    } else if (prefixToken === undefined) {
-      // Only exact tokens
-      candidates = this.intersectExactMatches(
-        exactTokens.map((token) => this.searchWord(token, "exact")),
-      );
-    } else {
-      // Both exact and prefix tokens - intersect them
-      const exactCandidates = this.intersectExactMatches(
-        exactTokens.map((token) => this.searchWord(token, "exact")),
-      );
-      candidates = this.intersectWithPrefix(exactCandidates, prefixToken);
+  private searchWords(tokens: string[], commonWordsMask: number): SearchMatch[] {
+    if (tokens.length === 0) {
+      return [];
     }
 
-    // Filter by common words if needed
-    const filteredCandidates =
-      commonBitmask !== 0 ? this.filterByCommonWords(candidates, commonBitmask) : candidates;
+    const exactTokens = tokens.slice(0, -1);
+    const lastToken = tokens[tokens.length - 1];
 
-    // Convert to array and sort
-    const matchArr = [...filteredCandidates];
-    this.sortMatches(matchArr);
+    if (exactTokens.length === 0) {
+      // Only one token - filter, deduplicate, then materialize
+      const generator = this.findWordMatches(lastToken, true);
+      const filteredGenerator =
+        commonWordsMask === 0 ? generator : this.filterByCommonWords(generator, commonWordsMask);
+      return this.deduplicateMatches(filteredGenerator);
+    }
 
-    for (const match of matchArr) {
-      yield match.docId;
+    // Multiple tokens - use generators for exact matches
+    const exactGenerators = exactTokens.map((token) => this.findWordMatches(token, false));
+
+    // Intersect exact matches first (they're already sorted by docId)
+    const exactMatches = this.intersectExactMatches(exactGenerators);
+
+    // Filter by common words before prefix intersection
+    const filteredExactMatches =
+      commonWordsMask === 0
+        ? exactMatches
+        : this.filterByCommonWords(exactMatches, commonWordsMask);
+
+    // Then intersect with prefix matches
+    return this.intersectWithPrefix(filteredExactMatches, lastToken);
+  }
+
+  private *findWordMatches(
+    word: string,
+    allowPrefix: boolean,
+  ): Generator<SearchMatch, undefined, undefined> {
+    const wordBytes = new TextEncoder().encode(word);
+    const startIndex = this.findWordIndex(wordBytes);
+
+    if (startIndex === -1) return;
+
+    const numEntries = this.indexData.length / 4;
+    const indexDecoder = new Decoder(this.indexData);
+    const entriesDecoder = new Decoder(this.entriesData);
+
+    for (let i = startIndex; i < numEntries; i++) {
+      const { offset, wordLength, indexWord } = this.readIndexEntry(
+        i,
+        indexDecoder,
+        entriesDecoder,
+      );
+
+      if (!this.wordMatches(indexWord, wordBytes, allowPrefix)) break;
+
+      const isExact = indexWord.length === wordBytes.length;
+      if (!allowPrefix && !isExact) continue;
+
+      // Read document entries for this word
+      entriesDecoder.seek(offset + wordLength);
+      yield* entriesDecoder.iterArray((d) => ({
+        docId: d.uvarint(),
+        senses: d.uint8(),
+        length: d.uint8(),
+        isPrefix: !isExact,
+      }));
+
+      if (!allowPrefix && isExact) break;
     }
   }
 
-  private *intersectWithPrefix(
-    exactCandidates: Generator<
-      { docId: number; senses: number; length: number; isPrefix: boolean },
-      undefined,
-      undefined
-    >,
-    prefixToken: string,
-  ): Generator<
-    { docId: number; senses: number; length: number; isPrefix: boolean },
-    undefined,
-    undefined
-  > {
-    const exactMatches = [...exactCandidates];
-    if (exactMatches.length === 0) return;
-
-    const prefixMatches = [...this.searchWord(prefixToken, "both")];
-
-    // Sort prefix matches by docId (exactMatches should already be sorted that way)
-    prefixMatches.sort((a, b) => a.docId - b.docId);
-
-    let exactIndex = 0;
-    let prefixIndex = 0;
-
-    while (exactIndex < exactMatches.length && prefixIndex < prefixMatches.length) {
-      const exactMatch = exactMatches[exactIndex];
-      const prefixMatch = prefixMatches[prefixIndex];
-
-      if (exactMatch.docId === prefixMatch.docId) {
-        // Check if senses overlap
-        const overlap = exactMatch.senses & prefixMatch.senses;
-        if (overlap !== 0) {
-          yield {
-            docId: exactMatch.docId,
-            senses: overlap,
-            length: Math.max(exactMatch.length, prefixMatch.length),
-            isPrefix: prefixMatch.isPrefix,
-          };
-        }
-        exactIndex++;
-        prefixIndex++;
-      } else if (exactMatch.docId < prefixMatch.docId) {
-        exactIndex++;
-      } else {
-        prefixIndex++;
-      }
-    }
-  }
-
-  private binarySearchWord(
-    target: Uint8Array,
-    mode: "exact" | "prefix",
-  ): { found: boolean; index: number; offset?: number; length?: number } {
+  private findWordIndex(wordBytes: Uint8Array): number {
     const numEntries = this.indexData.length / 4;
     const indexDecoder = new Decoder(this.indexData);
     const entriesDecoder = new Decoder(this.entriesData);
 
     let left = 0;
     let right = numEntries - 1;
-    let result = { found: false, index: -1 };
+    let result = -1;
 
     while (left <= right) {
       const mid = Math.floor((left + right) / 2);
+      const { indexWord } = this.readIndexEntry(mid, indexDecoder, entriesDecoder);
 
-      indexDecoder.seek(mid * 4);
-      const packed = indexDecoder.uint32();
-      const offset = packed & 0xffffff;
-      const wordLength = (packed >>> 24) & 0xff;
+      const cmp = this.compareBytes(wordBytes, indexWord);
 
-      entriesDecoder.seek(offset);
-      const indexWordBytes = entriesDecoder.byteString(wordLength);
-
-      const comparison = this.compareBytes(target, indexWordBytes, mode);
-
-      if (comparison === 0) {
-        if (mode === "exact") {
-          return { found: true, index: mid, offset, length: wordLength };
-        } else {
-          // For prefix search, find the first match
-          result = { found: true, index: mid };
-          right = mid - 1;
+      if (cmp <= 0) {
+        if (this.wordMatches(indexWord, wordBytes, true)) {
+          result = mid;
         }
-      } else if (comparison < 0) {
         right = mid - 1;
       } else {
         left = mid + 1;
@@ -232,179 +207,72 @@ export class InvertedIndex {
     return result;
   }
 
-  private compareBytes(a: Uint8Array, b: Uint8Array, mode: "exact" | "prefix" = "exact"): number {
+  private readIndexEntry(index: number, indexDecoder: Decoder, entriesDecoder: Decoder) {
+    indexDecoder.seek(index * 4);
+    const packed = indexDecoder.uint32();
+    const offset = packed & 0xffffff;
+    const wordLength = (packed >>> 24) & 0xff;
+
+    entriesDecoder.seek(offset);
+    const indexWord = entriesDecoder.byteString(wordLength);
+
+    return { offset, wordLength, indexWord };
+  }
+
+  private wordMatches(word: Uint8Array, target: Uint8Array, allowPrefix: boolean): boolean {
+    if (target.length > word.length) return false;
+
+    for (let i = 0; i < target.length; i++) {
+      if (word[i] !== target[i]) return false;
+    }
+
+    return allowPrefix || word.length === target.length;
+  }
+
+  private compareBytes(a: Uint8Array, b: Uint8Array): number {
     const minLength = Math.min(a.length, b.length);
 
     for (let i = 0; i < minLength; i++) {
-      if (a[i] < b[i]) return -1;
-      if (a[i] > b[i]) return 1;
+      if (a[i] !== b[i]) return a[i] - b[i];
     }
 
-    if (mode === "prefix") {
-      // For prefix mode, if we've matched the entire prefix, it's a match
-      return a.length <= b.length ? 0 : 1;
-    }
-
-    // For exact mode, lengths must match
-    if (a.length < b.length) return -1;
-    if (a.length > b.length) return 1;
-    return 0;
-  }
-
-  private *searchWord(
-    word: string,
-    mode: "exact" | "prefix" | "both",
-  ): Generator<
-    { docId: number; senses: number; length: number; isPrefix: boolean },
-    undefined,
-    undefined
-  > {
-    const wordBytes = new TextEncoder().encode(word);
-    const result = this.binarySearchWord(wordBytes, "prefix");
-
-    if (!result.found) {
-      return;
-    }
-
-    const numEntries = this.indexData.length / 4;
-    const indexDecoder = new Decoder(this.indexData);
-    const entriesDecoder = new Decoder(this.entriesData);
-
-    // Iterate from the first match onwards while the prefix matches
-    for (let i = result.index; i < numEntries; i++) {
-      indexDecoder.seek(i * 4);
-      const packed = indexDecoder.uint32();
-      const offset = packed & 0xffffff;
-      const wordLength = (packed >>> 24) & 0xff;
-
-      entriesDecoder.seek(offset);
-      const indexWordBytes = entriesDecoder.byteString(wordLength);
-
-      // Check if this word still starts with our prefix
-      if (!this.startsWithPrefix(indexWordBytes, wordBytes)) {
-        break;
-      }
-
-      const isExactMatch = indexWordBytes.length === wordBytes.length;
-
-      // Handle different modes
-      if (mode === "exact" && !isExactMatch) {
-        continue;
-      }
-      if (mode === "prefix" && isExactMatch) {
-        continue;
-      }
-
-      // For "both" mode or matching mode, yield the documents
-      entriesDecoder.seek(offset + wordLength);
-      for (const doc of entriesDecoder.iterArray((d) => ({
-        docId: d.uvarint(),
-        senses: d.uint8(),
-        length: d.uint8(),
-      }))) {
-        yield { ...doc, isPrefix: !isExactMatch };
-      }
-
-      // For exact mode, stop after first exact match
-      if (mode === "exact" && isExactMatch) {
-        break;
-      }
-    }
-  }
-
-  private startsWithPrefix(word: Uint8Array, prefix: Uint8Array): boolean {
-    if (prefix.length > word.length) return false;
-
-    for (let i = 0; i < prefix.length; i++) {
-      if (word[i] !== prefix[i]) return false;
-    }
-
-    return true;
-  }
-
-  private sortMatches(
-    matches: Array<{ docId: number; senses: number; length: number; isPrefix?: boolean }>,
-  ) {
-    matches.sort((a, b) => {
-      // Exact matches come before prefix matches
-      if ((a.isPrefix ?? false) !== (b.isPrefix ?? false)) {
-        return a.isPrefix ? 1 : -1;
-      }
-
-      const aLowestSense = this.getLowestSenseIndex(a.senses);
-      const bLowestSense = this.getLowestSenseIndex(b.senses);
-
-      if (aLowestSense !== bLowestSense) {
-        return aLowestSense - bLowestSense;
-      }
-
-      if (a.length !== b.length) {
-        return a.length - b.length;
-      }
-
-      return a.docId - b.docId;
-    });
-  }
-
-  private *filterByCommonWords(
-    matches: IteratorObject<
-      { docId: number; senses: number; length: number; isPrefix: boolean },
-      undefined,
-      undefined
-    >,
-    requiredBitmask: number,
-  ): Generator<
-    { docId: number; senses: number; length: number; isPrefix: boolean },
-    undefined,
-    undefined
-  > {
-    for (const match of matches) {
-      if (this.checkCommonWordBitmask(match.docId, requiredBitmask)) {
-        yield match;
-      }
-    }
+    return a.length - b.length;
   }
 
   private *intersectExactMatches(
-    gens: Generator<
-      { docId: number; senses: number; length: number; isPrefix: boolean },
-      undefined,
-      undefined
-    >[],
-  ): Generator<
-    { docId: number; senses: number; length: number; isPrefix: boolean },
-    undefined,
-    undefined
-  > {
-    if (gens.length === 0) {
+    generators: Generator<SearchMatch, undefined, undefined>[],
+  ): Generator<SearchMatch, undefined, undefined> {
+    if (generators.length === 0) return;
+    if (generators.length === 1) {
+      yield* generators[0];
       return;
     }
 
-    if (gens.length === 1) {
-      yield* gens[0];
-    }
+    // Since individual word results are already sorted by docId, we can do streaming intersection
+    const iterators = generators.map((gen) => ({ iter: gen, current: gen.next() }));
 
-    const values = gens.map((iter) => iter.next());
-
-    while (true) {
-      if (values.some((v) => v.done)) {
-        return;
-      }
-
-      let minDocId = values[0].value!.docId;
-      let maxDocId = values[0].value!.docId;
-      for (let i = 1; i < values.length; i++) {
-        const docId = values[i].value!.docId;
-        if (docId < minDocId) minDocId = docId;
-        if (docId > maxDocId) maxDocId = docId;
+    while (iterators.every((it) => !it.current.done)) {
+      let minDocId = iterators[0].current.value!.docId;
+      let maxDocId = minDocId;
+      for (let i = 1; i < iterators.length; i++) {
+        const docId = iterators[i].current.value!.docId;
+        if (docId < minDocId) {
+          minDocId = docId;
+        }
+        if (docId > maxDocId) {
+          maxDocId = docId;
+        }
       }
 
       if (minDocId === maxDocId) {
-        let commonSenses = values[0].value!.senses;
-        let maxLength = values[0].value!.length;
-        for (let i = 1; i < values.length; i++) {
-          commonSenses &= values[i].value!.senses;
-          maxLength = Math.max(maxLength, values[i].value!.length);
+        // All have same docId - check sense overlap
+        let commonSenses = iterators[0].current.value!.senses;
+        let maxLength = iterators[0].current.value!.length;
+
+        for (let i = 1; i < iterators.length; i++) {
+          const value = iterators[i].current.value!;
+          commonSenses &= value.senses;
+          maxLength = Math.max(maxLength, value.length);
         }
 
         if (commonSenses !== 0) {
@@ -412,21 +280,151 @@ export class InvertedIndex {
             docId: minDocId,
             senses: commonSenses,
             length: maxLength,
-            isPrefix: false,
+            isPrefix: false, // exact matches only here
           };
         }
 
-        for (let i = 0; i < values.length; i++) {
-          values[i] = gens[i].next();
+        // Advance all iterators
+        for (let i = 0; i < iterators.length; i++) {
+          iterators[i].current = iterators[i].iter.next();
         }
       } else {
-        for (let i = 0; i < values.length; i++) {
-          if (values[i].value!.docId !== maxDocId) {
-            values[i] = gens[i].next();
+        // Advance iterators pointing to minDocId
+        for (let i = 0; i < iterators.length; i++) {
+          if (iterators[i].current.value!.docId === minDocId) {
+            iterators[i].current = iterators[i].iter.next();
           }
         }
       }
     }
+  }
+
+  private intersectWithPrefix(
+    exactMatches: Generator<SearchMatch, undefined, undefined>,
+    prefixToken: string,
+  ): SearchMatch[] {
+    // Materialize exact matches (we need to scan them multiple times)
+    const exactArray = [...exactMatches];
+    if (exactArray.length === 0) return [];
+
+    // Stream through prefix matches without materializing them all
+    const prefixGenerator = this.findWordMatches(prefixToken, true);
+
+    // Generator that yields intersection results
+    const intersectionGenerator = this.intersectWithPrefixGenerator(exactArray, prefixGenerator);
+
+    // Deduplicate and return
+    return this.deduplicateMatches(intersectionGenerator);
+  }
+
+  private *intersectWithPrefixGenerator(
+    exactArray: SearchMatch[],
+    prefixGenerator: Generator<SearchMatch, undefined, undefined>,
+  ): Generator<SearchMatch, undefined, undefined> {
+    let exactIndex = 0;
+    let lastPrefixDocId = -1;
+
+    for (const prefixMatch of prefixGenerator) {
+      // Reset exact index if we've moved to a new word (docId went down)
+      if (prefixMatch.docId < lastPrefixDocId) {
+        exactIndex = 0;
+      }
+      lastPrefixDocId = prefixMatch.docId;
+
+      // Advance exact index to find matching docId
+      while (exactIndex < exactArray.length && exactArray[exactIndex].docId < prefixMatch.docId) {
+        exactIndex++;
+      }
+
+      // Check for match
+      if (exactIndex < exactArray.length && exactArray[exactIndex].docId === prefixMatch.docId) {
+        const exactMatch = exactArray[exactIndex];
+        const overlap = exactMatch.senses & prefixMatch.senses;
+        if (overlap !== 0) {
+          yield {
+            docId: exactMatch.docId,
+            senses: overlap,
+            length: Math.max(exactMatch.length, prefixMatch.length),
+            isPrefix: prefixMatch.isPrefix,
+          };
+        }
+      }
+    }
+  }
+
+  private buildCommonWordsMask(commonTokens: string[]): number {
+    let mask = 0;
+    for (const token of commonTokens) {
+      const index = this.commonWords.indexOf(token);
+      if (index !== -1) {
+        mask |= 1 << index;
+      }
+    }
+    return mask;
+  }
+
+  private *filterByCommonWords(
+    matches: Generator<SearchMatch, undefined, undefined>,
+    requiredMask: number,
+  ): Generator<SearchMatch, undefined, undefined> {
+    for (const match of matches) {
+      if (this.hasCommonWords(match.docId, requiredMask)) {
+        yield match;
+      }
+    }
+  }
+
+  private deduplicateMatches(matches: Generator<SearchMatch, undefined, undefined>): SearchMatch[] {
+    const seenDocIds = new Map<number, SearchMatch>();
+
+    for (const match of matches) {
+      const existing = seenDocIds.get(match.docId);
+      if (existing) {
+        // Combine with existing result for this docId
+        seenDocIds.set(match.docId, {
+          docId: match.docId,
+          senses: existing.senses | match.senses, // Union the senses
+          length: Math.max(existing.length, match.length),
+          isPrefix: existing.isPrefix || match.isPrefix,
+        });
+      } else {
+        // First result for this docId
+        seenDocIds.set(match.docId, match);
+      }
+    }
+
+    return Array.from(seenDocIds.values());
+  }
+
+  private hasCommonWords(docId: number, requiredMask: number): boolean {
+    const decoder = new Decoder(this.commonWordsTableData);
+    decoder.seek(docId * 2);
+    const docMask = decoder.uint16();
+    return (docMask & requiredMask) === requiredMask;
+  }
+
+  private sortMatches(matches: SearchMatch[]): void {
+    matches.sort((a, b) => {
+      // Exact matches before prefix matches
+      if (a.isPrefix !== b.isPrefix) {
+        return a.isPrefix ? 1 : -1;
+      }
+
+      // Lower sense indices first
+      const aLowest = this.getLowestSenseIndex(a.senses);
+      const bLowest = this.getLowestSenseIndex(b.senses);
+      if (aLowest !== bLowest) {
+        return aLowest - bLowest;
+      }
+
+      // Shorter matches first
+      if (a.length !== b.length) {
+        return a.length - b.length;
+      }
+
+      // Document ID as tiebreaker
+      return a.docId - b.docId;
+    });
   }
 
   private getLowestSenseIndex(senses: number): number {
@@ -437,12 +435,5 @@ export class InvertedIndex {
       index++;
     }
     return index;
-  }
-
-  private checkCommonWordBitmask(docId: number, requiredBitmask: number): boolean {
-    const decoder = new Decoder(this.commonWordsTableData);
-    decoder.seek(docId * 2);
-    const docBitmask = decoder.uint16();
-    return (docBitmask & requiredBitmask) === requiredBitmask;
   }
 }

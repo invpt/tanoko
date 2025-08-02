@@ -27,7 +27,7 @@
         {/each}
       </ruby>
     {:else}
-      {@const segments = segmentPinyin(word.simplified, toneNumbersToAccents(word.pinyin[0]))}
+      {@const segments = segmentPinyin(word.simplified, toneNumbersToAccents(word.pinyin))}
       <ruby class="wordTitleBase">
         {#each segments as segment}
           <span class="fontSimplifiedChinese">{segment.hanzi}</span><rt class="pinyin"

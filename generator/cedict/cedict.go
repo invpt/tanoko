@@ -36,13 +36,8 @@ func Parse(r io.Reader) (ce CEDICT, err error) {
 		if end < 0 {
 			return CEDICT{}, errors.New("invalid CEDICT format")
 		}
-		pinyinUnsplit := text[:end]
+		entry.Pinyin = text[:end]
 		text = text[end+3:]
-
-		entry.Pinyin = []string{}
-		for _, pinyin := range strings.Split(pinyinUnsplit, ",") {
-			entry.Pinyin = append(entry.Pinyin, strings.TrimSpace(pinyin))
-		}
 
 		entry.Senses = []Gloss{}
 		for text != "" {
@@ -72,7 +67,7 @@ type CEDICT []Entry
 type Entry struct {
 	Traditional string
 	Simplified  string
-	Pinyin      []string
+	Pinyin      string
 	Senses      []Gloss
 }
 

@@ -142,7 +142,7 @@
   {/if}
 
   {#if results.length > 0}
-    {#each results as result (result.type === "jmdict" ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin.join("|"))}
+    {#each results as result (result.type === "jmdict" ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
       <Word word={result} />
     {/each}
 

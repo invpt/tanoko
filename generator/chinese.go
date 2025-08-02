@@ -87,10 +87,7 @@ func writeCedictBinary(ce cedict.CEDICT, outputDir string) error {
 
 		encode.String(b, word.Traditional)
 		encode.String(b, word.Simplified)
-
-		for _, pinyin := range encode.Array(b, word.Pinyin) {
-			encode.String(b, pinyin)
-		}
+		encode.String(b, word.Pinyin)
 
 		for _, glosses := range encode.Array(b, word.Senses) {
 			for _, gloss := range encode.Array(b, glosses) {
@@ -125,15 +122,11 @@ func writeCedictNativeRadix(ce cedict.CEDICT, outputDir string) error {
 	for index, entry := range ce {
 		entryIndex := uint32(index)
 
-		for _, pinyin := range processPinyin(entry.Pinyin) {
-			tree.Add(pinyin, entryIndex)
-		}
-
 		tree.Add(entry.Traditional, entryIndex)
-
 		if entry.Simplified != entry.Traditional {
 			tree.Add(entry.Simplified, entryIndex)
 		}
+		tree.Add(entry.Pinyin, entryIndex)
 	}
 
 	tree.PrintStats("CEDICT native radix")

@@ -23,7 +23,7 @@ export type DictionaryEntry = (JMdictWord & { type: "jmdict" }) | (CedictWord & 
 export type CedictWord = {
   traditional: string;
   simplified: string;
-  pinyin: string[];
+  pinyin: string;
   senses: string[][];
 };
 
@@ -236,7 +236,7 @@ function parseCedictEntry(decoder: Decoder): DictionaryEntry | undefined {
   try {
     const traditional = decoder.string();
     const simplified = decoder.string();
-    const pinyin = Array.from(decoder.iterArray(() => decoder.string()));
+    const pinyin = decoder.string();
     const senses = Array.from(
       decoder.iterArray(() => Array.from(decoder.iterArray(() => decoder.string()))),
     );

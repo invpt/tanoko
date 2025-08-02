@@ -65,16 +65,14 @@
 <main>
   {#if processed != null && alternative != null}
     <button class="alternative" onclick={swapToAlternative}>
-      <Languages /> Searching{processed.brackets[0]}{processed.query}{processed
-        .brackets[1]}({processed.kind}). Click to search by {alternative.kind}{alternative
+      <Languages class="alternativeIcon" /> Searching{processed
+        .brackets[0]}{processed.query}{processed.brackets[1]}({processed.kind}). Click to search by {alternative.kind}{alternative
         .brackets[0]}{alternative.query}{alternative.brackets[1]}instead.
     </button>
   {/if}
-  <div class="results">
-    {#each results as result (result.type === "jmdict" ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin.join("|"))}
-      <Word word={result} />
-    {/each}
-  </div>
+  {#each results as result (result.type === "jmdict" ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin.join("|"))}
+    <Word word={result} />
+  {/each}
 </main>
 
 <style>
@@ -82,6 +80,7 @@
     margin: 20px 16px 0 16px;
     display: flex;
     flex-direction: column;
+    gap: 8px;
   }
 
   .alternative {
@@ -102,9 +101,11 @@
     text-decoration: underline;
   }
 
-  .results {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  .alternative :global {
+    .alternativeIcon {
+      width: 1em;
+      height: 1em;
+      min-width: 1em;
+    }
   }
 </style>

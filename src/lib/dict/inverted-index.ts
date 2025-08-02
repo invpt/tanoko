@@ -5,7 +5,7 @@ interface SearchMatch {
   docId: number;
   senses: number;
   length: number;
-  isPrefix: boolean;
+  unmatchedChars: number;
 }
 
 export class InvertedIndex {
@@ -163,8 +163,8 @@ export class InvertedIndex {
 
       if (!this.wordMatches(indexWord, wordBytes, allowPrefix)) break;
 
-      const isExact = indexWord.length === wordBytes.length;
-      if (!allowPrefix && !isExact) continue;
+      const unmatchedChars = indexWord.length - wordBytes.length;
+      if (!allowPrefix && unmatchedChars != 0) continue;
 
       // Read document entries for this word
       entriesDecoder.seek(offset + wordLength);
@@ -172,10 +172,10 @@ export class InvertedIndex {
         docId: d.uvarint(),
         senses: d.uint8(),
         length: d.uint8(),
-        isPrefix: !isExact,
+        unmatchedChars,
       }));
 
-      if (!allowPrefix && isExact) break;
+      if (!allowPrefix) break;
     }
   }
 
@@ -280,7 +280,7 @@ export class InvertedIndex {
             docId: minDocId,
             senses: commonSenses,
             length: maxLength,
-            isPrefix: false, // exact matches only here
+            unmatchedChars: 0, // exact matches only here
           };
         }
 
@@ -345,7 +345,7 @@ export class InvertedIndex {
             docId: exactMatch.docId,
             senses: overlap,
             length: Math.max(exactMatch.length, prefixMatch.length),
-            isPrefix: prefixMatch.isPrefix,
+            unmatchedChars: prefixMatch.unmatchedChars,
           };
         }
       }
@@ -384,12 +384,14 @@ export class InvertedIndex {
         seenDocIds.set(match.docId, {
           docId: match.docId,
           senses:
-            !existing.isPrefix && match.isPrefix ? existing.senses : existing.senses | match.senses,
+            existing.unmatchedChars === 0 && match.unmatchedChars > 0
+              ? existing.senses
+              : existing.senses | match.senses,
           length:
-            !existing.isPrefix && match.isPrefix
+            existing.unmatchedChars === 0 && match.unmatchedChars > 0
               ? existing.length
               : Math.max(existing.length, match.length),
-          isPrefix: existing.isPrefix && match.isPrefix,
+          unmatchedChars: Math.min(existing.unmatchedChars, match.unmatchedChars),
         });
       } else {
         // First result for this docId
@@ -409,9 +411,9 @@ export class InvertedIndex {
 
   private sortMatches(matches: SearchMatch[]): void {
     matches.sort((a, b) => {
-      // Exact matches before prefix matches
-      if (a.isPrefix !== b.isPrefix) {
-        return a.isPrefix ? 1 : -1;
+      // Fewer unmatched characters first (exact matches have 0)
+      if (a.unmatchedChars !== b.unmatchedChars) {
+        return a.unmatchedChars - b.unmatchedChars;
       }
 
       // Lower sense indices first

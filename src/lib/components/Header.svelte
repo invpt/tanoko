@@ -54,7 +54,17 @@
 <nav>
   <span class="title">tanoko</span>
   <span class="search-wrapper">
-    <input bind:value={query} onkeyup={handleKeyUp} placeholder="Search" />
+    <input
+      bind:value={query}
+      onkeyup={handleKeyUp}
+      placeholder="Search"
+      lang="ja"
+      autocapitalize="none"
+      autocomplete="off"
+      autocorrect="off"
+      spellcheck="false"
+      autofocus
+    />
     <button
       onclick={() => search(Language.Chinese)}
       class={["chinese", { selected: language === Language.Chinese }]}

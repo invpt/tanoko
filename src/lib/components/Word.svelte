@@ -153,7 +153,7 @@
   }
 
   .sensesWrapper {
-    margin: 0 24px;
+    margin: 0 12px;
   }
 
   .wordSenses {

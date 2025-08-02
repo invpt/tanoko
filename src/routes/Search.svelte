@@ -180,7 +180,7 @@
     gap: 8px;
     margin: 0 auto;
 
-    color: #444;
+    color: var(--t-on-background);
     font-size: 0.9em;
   }
 

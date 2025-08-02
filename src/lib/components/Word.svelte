@@ -99,6 +99,7 @@
   .reading,
   .pinyin {
     user-select: none;
+    pointer-events: none;
   }
 
   .pinyin {

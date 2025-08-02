@@ -28,6 +28,16 @@ export function segmentFurigana(
   return segments;
 }
 
+export function segmentPinyin(hanzi: string, pinyin: string): { hanzi: string; pinyin: string }[] {
+  const hanziArr = [...hanzi];
+  const pinyinArr = pinyin.split(" ");
+  if (hanziArr.length === pinyinArr.length) {
+    return hanziArr.map((char, index) => ({ hanzi: char, pinyin: pinyinArr[index] }));
+  } else {
+    return [{ hanzi, pinyin }];
+  }
+}
+
 export function toneNumbersToAccents(pinyin: string): string {
   const toneMap: { [key: string]: string[] } = {
     a: ["a", "ā", "á", "ă", "à"],

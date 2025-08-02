@@ -1,6 +1,6 @@
 <script lang="ts">
   import { type DictionaryEntry } from "../dict";
-  import { segmentFurigana, toneNumbersToAccents } from "../word";
+  import { segmentFurigana, segmentPinyin, toneNumbersToAccents } from "../word";
 
   const { word }: { word: DictionaryEntry } = $props();
 </script>
@@ -27,10 +27,14 @@
         {/each}
       </ruby>
     {:else}
-      <div class="wordTitleBase">
-        <span class="fontSimplifiedChinese">{word.simplified}</span>
-        <span class="pinyin">{word.pinyin.map((p) => toneNumbersToAccents(p)).join(", ")}</span>
-      </div>
+      {@const segments = segmentPinyin(word.simplified, toneNumbersToAccents(word.pinyin[0]))}
+      <ruby class="wordTitleBase">
+        {#each segments as segment}
+          <span class="fontSimplifiedChinese">{segment.hanzi}</span><rt class="pinyin"
+            >{segment.pinyin}</rt
+          >
+        {/each}
+      </ruby>
     {/if}
     <div class="headlineSkewer">
       <div class="headlineSkewerSizer fontJapanese">&nbsp;</div>
@@ -92,15 +96,13 @@
     font-family: "Noto Serif SC";
   }
 
+  .reading,
   .pinyin {
-    font-family: "Noto Serif";
-    margin-left: 0.25em;
-    font-size: 0.75em;
-    color: #444;
+    user-select: none;
   }
 
-  .reading {
-    user-select: none;
+  .pinyin {
+    margin: 0 0.2em;
   }
 
   .hiddenReading {

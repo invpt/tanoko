@@ -164,7 +164,7 @@
 
 <style>
   main {
-    margin: 20px 16px 0 16px;
+    margin: 20px 24px 0 24px;
     display: flex;
     flex-direction: column;
     gap: 8px;

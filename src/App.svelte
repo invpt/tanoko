@@ -14,6 +14,5 @@
     display: grid;
     max-width: 1200px;
     margin: 0 auto;
-    padding: 12px;
   }
 </style>

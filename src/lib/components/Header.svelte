@@ -52,7 +52,11 @@
 </script>
 
 <nav>
-  <span class="title">tanoko</span>
+  <a class="title" href="/">
+    <span>ただ</span>
+    <span class="titleDeemph">の</span>
+    <span>ことば</span>
+  </a>
   <span class="search-wrapper">
     <input
       bind:value={query}
@@ -80,20 +84,70 @@
       日
     </button>
   </span>
+  <div class="buttons">
+    <a class="settings" href="/settings"> Settings </a>
+  </div>
 </nav>
 
 <style>
   nav {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
     background-color: rgb(238, 238, 238);
-    padding: 8px;
-    border-radius: 20px;
+    align-items: stretch;
+    padding: 8px 16px;
+    margin: 16px;
+    margin-bottom: 0;
+    border-radius: 16px;
+    gap: 16px 16px;
+  }
+
+  @media (max-width: 700px) {
+    nav {
+      grid-template-columns: auto auto;
+      margin: 0;
+      border-radius: 0;
+      padding-bottom: 16px;
+    }
+
+    .search-wrapper {
+      grid-row: 2;
+      grid-column: 1 / 3;
+    }
   }
 
   .title {
-    margin: 0 8px;
+    margin: auto 0;
+    font-family: "Noto Serif JP";
+    font-size: 28px;
+    color: black;
+    text-decoration: none;
+    display: flex;
+    align-items: baseline;
+    transform: translateY(-4px) rotate(-3deg);
+    transition: transform 0.15s;
+    flex-wrap: wrap;
+  }
+
+  .title:hover {
+    transform: translateY(-5px) rotate(-3deg) scale(1.1);
+  }
+
+  .title:active {
+    transform: translateY(-5px) rotate(-3deg) scale(1.05);
+  }
+
+  .title :nth-child(1) {
+    padding-right: 3px;
+  }
+
+  .title :nth-child(3) {
+    transform: translateY(4px);
+  }
+
+  .titleDeemph {
+    font-size: 0.8em;
+    transform: translateY(2px);
   }
 
   .search-wrapper {
@@ -104,7 +158,7 @@
     align-items: stretch;
   }
 
-  input {
+  .search-wrapper input {
     flex: 1;
 
     width: 0;
@@ -118,7 +172,7 @@
     background-color: white;
   }
 
-  button {
+  .search-wrapper button {
     all: unset;
 
     user-select: none;
@@ -133,17 +187,30 @@
     padding: 8px 10px;
   }
 
-  button:hover {
+  .search-wrapper button:hover {
     background-color: color-mix(in hsl, var(--bg), black 10%);
   }
 
-  .japanese {
+  .search-wrapper .japanese {
     border-top-right-radius: 16px;
     border-bottom-right-radius: 16px;
   }
 
-  .selected {
+  .search-wrapper .selected {
     --bg: var(--t-primary);
     --fg: var(--t-on-primary);
+  }
+
+  .buttons {
+    margin: auto 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px 20px;
+    text-wrap: nowrap;
+    flex-wrap: wrap;
+  }
+
+  .settings {
+    color: rgb(61, 61, 61);
   }
 </style>

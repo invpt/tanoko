@@ -383,9 +383,13 @@ export class InvertedIndex {
         // Combine with existing result for this docId
         seenDocIds.set(match.docId, {
           docId: match.docId,
-          senses: existing.senses | match.senses, // Union the senses
-          length: Math.max(existing.length, match.length),
-          isPrefix: existing.isPrefix || match.isPrefix,
+          senses:
+            !existing.isPrefix && match.isPrefix ? existing.senses : existing.senses | match.senses,
+          length:
+            !existing.isPrefix && match.isPrefix
+              ? existing.length
+              : Math.max(existing.length, match.length),
+          isPrefix: existing.isPrefix && match.isPrefix,
         });
       } else {
         // First result for this docId

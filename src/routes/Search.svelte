@@ -3,7 +3,7 @@
   import { dict, Language, QueryType, type DictionaryEntry } from "../lib/dict";
   import Word from "../lib/components/Word.svelte";
   import { processQuery } from "../lib/query";
-  import { ArrowLeftRight, Languages } from "lucide-svelte";
+  import { Languages } from "lucide-svelte";
 
   const query = $derived(searchParams.get("q"));
   const language = $derived.by(() => {
@@ -40,20 +40,90 @@
   });
 
   let results = $state.raw<DictionaryEntry[]>([]);
+  let generator = $state.raw<AsyncGenerator<DictionaryEntry> | null>(null);
+  let isLoading = $state(false);
+  let hasMoreResults = $state(true);
+  let showLoadingIndicator = $state(false);
+  let loadingTimeout: number | undefined;
+
   $effect(() => {
     if (processed != null && language != null) {
-      const gen = dict.search(processed.query, language, processed.queryType);
+      generator = dict.search(processed.query, language, processed.queryType);
+      hasMoreResults = true;
+      clearLoadingState();
 
-      (async () => {
-        const temp = [];
-        for await (const result of gen) {
-          temp.push(result);
-          if (temp.length >= 32) {
-            break;
-          }
+      // Trigger initial load manually (not in effect)
+      queueMicrotask(() => loadResults(true));
+    } else {
+      results = [];
+      generator = null;
+      hasMoreResults = false;
+      clearLoadingState();
+    }
+  });
+
+  const loadResults = async (isInitialLoad = false) => {
+    if (!generator || isLoading) return;
+
+    isLoading = true;
+
+    // Set up delayed loading indicator
+    if (loadingTimeout) clearTimeout(loadingTimeout);
+    loadingTimeout = setTimeout(() => {
+      if (isLoading) showLoadingIndicator = true;
+    }, 500);
+
+    try {
+      const batchSize = 10;
+      const newResults: DictionaryEntry[] = [];
+
+      for (let i = 0; i < batchSize; i++) {
+        const next = await generator.next();
+        if (next.done) {
+          hasMoreResults = false;
+          break;
         }
-        results = temp;
-      })();
+        newResults.push(next.value);
+      }
+
+      if (isInitialLoad) {
+        results = newResults;
+      } else {
+        results = [...results, ...newResults];
+      }
+    } catch (error) {
+      console.error("Error loading results:", error);
+      hasMoreResults = false;
+    } finally {
+      clearLoadingState();
+    }
+  };
+
+  const clearLoadingState = () => {
+    isLoading = false;
+    showLoadingIndicator = false;
+    if (loadingTimeout) {
+      clearTimeout(loadingTimeout);
+      loadingTimeout = undefined;
+    }
+  };
+
+  // Infinite scroll handler
+  const handleScroll = () => {
+    if (
+      hasMoreResults &&
+      !isLoading &&
+      window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000
+    ) {
+      loadResults(false);
+    }
+  };
+
+  // Set up scroll listener
+  $effect(() => {
+    if (typeof window !== "undefined") {
+      window.addEventListener("scroll", handleScroll);
+      return () => window.removeEventListener("scroll", handleScroll);
     }
   });
 
@@ -70,9 +140,26 @@
         .brackets[0]}{alternative.query}{alternative.brackets[1]}instead.
     </button>
   {/if}
-  {#each results as result (result.type === "jmdict" ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin.join("|"))}
-    <Word word={result} />
-  {/each}
+
+  {#if results.length > 0}
+    {#each results as result (result.type === "jmdict" ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin.join("|"))}
+      <Word word={result} />
+    {/each}
+
+    {#if showLoadingIndicator && hasMoreResults}
+      <div class="loading">Loading more...</div>
+    {/if}
+
+    {#if !hasMoreResults}
+      <div class="end-message">No more results</div>
+    {/if}
+  {:else if processed != null}
+    {#if showLoadingIndicator}
+      <div class="loading">Loading...</div>
+    {:else if !isLoading}
+      <div class="no-results">No results found</div>
+    {/if}
+  {/if}
 </main>
 
 <style>
@@ -101,11 +188,23 @@
     text-decoration: underline;
   }
 
-  .alternative :global {
-    .alternativeIcon {
-      width: 1em;
-      height: 1em;
-      min-width: 1em;
-    }
+  .alternative :global(.alternativeIcon) {
+    width: 1em;
+    height: 1em;
+    min-width: 1em;
+  }
+
+  .loading,
+  .end-message,
+  .no-results {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-style: italic;
+  }
+
+  .end-message {
+    border-top: 1px solid #eee;
+    margin-top: 20px;
   }
 </style>

@@ -128,7 +128,7 @@
     flex: 1;
     height: 2px;
     margin: 0 16px;
-    background-color: rgb(230, 230, 230);
+    background-color: var(--t-secondary);
   }
 
   .headlineBadge,

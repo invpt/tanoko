@@ -1,4 +1,22 @@
-:root {
+body {
+  --t-background: white;
+  --t-on-background: black;
+
   --t-primary: blue;
   --t-on-primary: white;
+
+  --t-secondary: rgb(238, 238, 238);
+  --t-on-secondary: black;
+}
+@media (prefers-color-scheme: dark) {
+  body {
+    --t-background: #111;
+    --t-on-background: white;
+
+    --t-primary: blue;
+    --t-on-primary: white;
+
+    --t-secondary: rgb(32, 32, 32);
+    --t-on-secondary: white;
+  }
 }

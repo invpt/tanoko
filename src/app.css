@@ -7,4 +7,7 @@
 
   font-size: 18px;
   font-family: "Ubuntu", sans-serif;
+
+  background-color: var(--t-background);
+  color: var(--t-on-background);
 }

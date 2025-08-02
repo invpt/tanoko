@@ -93,7 +93,8 @@
   nav {
     display: grid;
     grid-template-columns: auto 1fr auto;
-    background-color: rgb(238, 238, 238);
+    background-color: var(--t-secondary);
+    color: var(--t-on-secondary);
     align-items: stretch;
     padding: 8px 16px;
     margin: 16px;
@@ -120,7 +121,7 @@
     margin: auto 0;
     font-family: "Noto Serif JP";
     font-size: 28px;
-    color: black;
+    color: var(--t-on-secondary);
     text-decoration: none;
     display: flex;
     align-items: baseline;
@@ -169,7 +170,8 @@
     padding-left: 12px;
     border-top-left-radius: 16px;
     border-bottom-left-radius: 16px;
-    background-color: white;
+    background-color: var(--t-background);
+    color: var(--t-on-background);
   }
 
   .search-wrapper button {
@@ -178,8 +180,8 @@
     user-select: none;
     cursor: pointer;
 
-    --bg: white;
-    --fg: black;
+    --bg: var(--t-background);
+    --fg: var(--t-on-background);
 
     background-color: var(--bg);
     color: var(--fg);
@@ -211,6 +213,6 @@
   }
 
   .settings {
-    color: rgb(61, 61, 61);
+    color: var(--t-on-secondary);
   }
 </style>

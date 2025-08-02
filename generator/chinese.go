@@ -126,7 +126,7 @@ func writeCedictNativeRadix(ce cedict.CEDICT, outputDir string) error {
 		if entry.Simplified != entry.Traditional {
 			tree.Add(entry.Simplified, entryIndex)
 		}
-		tree.Add(entry.Pinyin, entryIndex)
+		tree.Add(processPinyin(entry.Pinyin), entryIndex)
 	}
 
 	tree.PrintStats("CEDICT native radix")
@@ -165,19 +165,15 @@ func writeCedictEnglishIndex(ce cedict.CEDICT, outputDir string) error {
 	return idx.Export(file)
 }
 
-func processPinyin(pinyin []string) []string {
-	result := make([]string, 0, len(pinyin))
-	for _, p := range pinyin {
-		b := strings.Builder{}
-		for _, c := range p {
-			l := unicode.ToLower(c)
-			if 'a' <= l && l <= 'z' {
-				b.WriteRune(l)
-			}
+func processPinyin(pinyin string) string {
+	b := strings.Builder{}
+	for _, c := range pinyin {
+		l := unicode.ToLower(c)
+		if 'a' <= l && l <= 'z' {
+			b.WriteRune(l)
 		}
-		result = append(result, b.String())
 	}
-	return result
+	return b.String()
 }
 
 func stripSquareBrackets(text string) string {

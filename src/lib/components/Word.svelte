@@ -8,27 +8,22 @@
 <div class="word">
   <div class="wordHeadline">
     {#if word.type === "jmdict"}
-      {@const kanji =
-        word.kanji.length === 0 || !word.kanji[0].common ? word.kana[0].text : word.kanji[0].text}
       {@const segments = segmentFurigana(
         word.kanji?.[0]?.text ?? word.kana[0].text,
         word.kana[0].text,
       )}
-      <ruby
-        class={{
-          wordTitleBase: true,
-          fontJapanese: true,
-        }}
-      >
+      <ruby class="wordTitleBase fontJapanese">
         {#each segments as el}
-          {el.kanji}<rt
-            class={{
-              hiddenReading: false,
-              reading: true,
-            }}
-          >
-            {el.reading}
-          </rt>
+          {el.kanji}{#if el.reading.length > 0}
+            <rt
+              class={{
+                hiddenReading: false,
+                reading: true,
+              }}
+            >
+              {el.reading}
+            </rt>
+          {/if}
         {/each}
       </ruby>
     {:else}
@@ -38,17 +33,10 @@
       </div>
     {/if}
     <div class="headlineSkewer">
-      <div
-        class={{
-          headlineSkewerSizer: true,
-          fontJapanese: true,
-        }}
-      >
-        &nbsp;
-      </div>
+      <div class="headlineSkewerSizer fontJapanese">&nbsp;</div>
       <div class="headlineSpacer"></div>
-      <!--<div class="headlineBadge">Review {reviewIn()}</div>-->
-      <button class="headlineBadge" onclick={() => {}}> Add to deck </button>
+      <!--<div class="headlineBadge">Review {reviewIn()}</div>
+      <button class="headlineBadge" onclick={() => {}}> Add to deck </button>-->
     </div>
   </div>
   <div class="sensesWrapper">
@@ -165,7 +153,7 @@
   }
 
   .sensesWrapper {
-    margin: 12px 24px;
+    margin: 0 24px;
   }
 
   .wordSenses {
@@ -180,7 +168,7 @@
   }
 
   .wordSense {
-    margin-bottom: 0.5em;
+    margin-bottom: 0.25em;
   }
 
   .wordSense::marker {

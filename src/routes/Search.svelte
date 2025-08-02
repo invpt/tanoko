@@ -70,14 +70,16 @@
         .brackets[0]}{alternative.query}{alternative.brackets[1]}instead.
     </button>
   {/if}
-  {#each results as result (result.type === "jmdict" ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin.join("|"))}
-    <Word word={result} />
-  {/each}
+  <div class="results">
+    {#each results as result (result.type === "jmdict" ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin.join("|"))}
+      <Word word={result} />
+    {/each}
+  </div>
 </main>
 
 <style>
   main {
-    margin-top: 20px;
+    margin: 20px 16px 0 16px;
     display: flex;
     flex-direction: column;
   }
@@ -98,5 +100,11 @@
 
   .alternative:hover {
     text-decoration: underline;
+  }
+
+  .results {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 </style>

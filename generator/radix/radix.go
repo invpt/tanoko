@@ -137,6 +137,7 @@ func (n *node) countStats(nodeCount *int, totalResults *int) {
 func (t *Tree) Export(w io.Writer) error {
 	b := encode.NewBuffer()
 	encode.Uint32(b, t.root.encode(b, make(map[*node]uint32)))
+	encode.Uint32(b, uint32(len(t.root.edge)))
 	_, err := w.Write(b.Finish())
 	return err
 }
@@ -146,16 +147,16 @@ func (n *node) encode(b *encode.Buffer, encodedOffsets map[*node]uint32) uint32 
 		return offset
 	}
 
-	sortedChildren := make([]byte, 0, len(n.children))
-	for b := range n.children {
-		sortedChildren = append(sortedChildren, b)
+	sortedChildren := make([]*node, 0, len(n.children))
+	for _, child := range n.children {
+		sortedChildren = append(sortedChildren, child)
 	}
-	slices.Sort(sortedChildren)
+	slices.SortFunc(sortedChildren, func(a *node, b *node) int { return int(a.edge[0] - b.edge[0]) })
 
 	// Children are encoded first since we need their offsets
 	childOffsets := make([]uint32, len(sortedChildren))
-	for i, firstByte := range sortedChildren {
-		childNode := n.children[firstByte]
+	for i, child := range sortedChildren {
+		childNode := n.children[child.edge[0]]
 		childOffsets[i] = childNode.encode(b, encodedOffsets)
 	}
 
@@ -163,9 +164,10 @@ func (n *node) encode(b *encode.Buffer, encodedOffsets map[*node]uint32) uint32 
 	encodedOffset := uint32(b.Offset())
 	encodedOffsets[n] = encodedOffset
 
-	encode.String(b, n.edge)
-	for i, firstByte := range encode.Array(b, sortedChildren) {
-		encode.Uint8(b, firstByte)
+	encode.Raw(b, n.edge)
+	for i, child := range encode.Array(b, sortedChildren) {
+		encode.Uint8(b, child.edge[0])
+		encode.Uint8(b, uint8(len(child.edge)))
 		encode.Uvarint(b, childOffsets[i])
 	}
 	for _, resultID := range encode.Array(b, n.results) {

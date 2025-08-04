@@ -1,4 +1,4 @@
-export default [
+export const pinyinSyllables = [
   "a",
   "ai",
   "an",

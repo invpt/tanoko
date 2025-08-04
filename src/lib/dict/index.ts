@@ -15,6 +15,7 @@ import { WordLoader } from "./word-loader";
 import { RadixTree } from "./radix-tree";
 import { InvertedIndex } from "./inverted-index";
 import { ProgressTracker } from "./progress-tracker";
+import { EnglishQuery, NativeQuery } from "../query/interfaces";
 
 export type { JMdictWord, Kanjidic2Character };
 
@@ -30,11 +31,6 @@ export type CedictWord = {
 export enum Language {
   Chinese = "zh",
   Japanese = "jp",
-}
-
-export enum QueryType {
-  English = "english",
-  Native = "native",
 }
 
 class Dictionary {
@@ -57,19 +53,21 @@ class Dictionary {
   }
 
   async *search(
-    query: string,
+    query: EnglishQuery | NativeQuery,
     language: Language,
-    queryType: QueryType,
     onProgress?: (bytesDownloaded: number) => void,
   ): AsyncGenerator<DictionaryEntry> {
     await this.initialize();
 
     const progressTracker = onProgress ? new ProgressTracker(onProgress) : undefined;
-
-    const queryEngine = await this.getQueryEngine(language, queryType, progressTracker);
     const entryLoader = await this.getEntryLoader(language, progressTracker);
 
-    for (const id of queryEngine.search(query)) {
+    const results =
+      query instanceof EnglishQuery
+        ? (await this.getInvertedIndex(language)).search(query)
+        : (await this.getRadixTree(language)).search(query);
+
+    for (const id of results) {
       const entry = await entryLoader.loadEntry(id);
       if (entry) {
         yield entry;
@@ -85,17 +83,7 @@ class Dictionary {
       throw new Error("Dictionary not initialized");
     }
 
-    const isJapanese = language === Language.Japanese;
-
-    if (isJapanese) {
-      return (this.jmdictLoader ??= await WordLoader.load(
-        ...(await Promise.all([
-          this.storage.ensureFileExists("jmdict.bin", jmdictUrl, progressTracker),
-          this.storage.ensureFileExists("jmdict-offsets.bin", jmdictOffsetsUrl, progressTracker),
-        ])),
-        parseJmdictEntry,
-      ));
-    } else {
+    if (language === Language.Chinese) {
       return (this.cedictLoader ??= await WordLoader.load(
         ...(await Promise.all([
           this.storage.ensureFileExists("cedict.bin", cedictUrl, progressTracker),
@@ -103,57 +91,60 @@ class Dictionary {
         ])),
         parseCedictEntry,
       ));
+    } else {
+      return (this.jmdictLoader ??= await WordLoader.load(
+        ...(await Promise.all([
+          this.storage.ensureFileExists("jmdict.bin", jmdictUrl, progressTracker),
+          this.storage.ensureFileExists("jmdict-offsets.bin", jmdictOffsetsUrl, progressTracker),
+        ])),
+        parseJmdictEntry,
+      ));
     }
   }
 
-  private async getQueryEngine(
+  private async getRadixTree(
     language: Language,
-    queryType: QueryType,
     progressTracker?: ProgressTracker,
-  ): Promise<RadixTree | InvertedIndex> {
+  ): Promise<RadixTree> {
     if (!this.storage) {
       throw new Error("Dictionary not initialized");
     }
 
-    const isJapanese = language === Language.Japanese;
-    const useEnglish = queryType === QueryType.English;
-
-    if (isJapanese) {
-      if (useEnglish) {
-        return (this.jmdictEnglishQuery ??= await InvertedIndex.load(
-          await this.storage.ensureFileExists(
-            "jmdict-english.bin",
-            jmdictEnglishUrl,
-            progressTracker,
-          ),
-        ));
-      } else {
-        return (this.jmdictNativeQuery ??= await RadixTree.load(
-          await this.storage.ensureFileExists(
-            "jmdict-native.bin",
-            jmdictNativeUrl,
-            progressTracker,
-          ),
-        ));
-      }
+    if (language === Language.Chinese) {
+      return (this.cedictNativeQuery ??= await RadixTree.load(
+        await this.storage.ensureFileExists("cedict-native.bin", cedictNativeUrl, progressTracker),
+      ));
     } else {
-      if (useEnglish) {
-        return (this.cedictEnglishQuery ??= await InvertedIndex.load(
-          await this.storage.ensureFileExists(
-            "cedict-english.bin",
-            cedictEnglishUrl,
-            progressTracker,
-          ),
-        ));
-      } else {
-        return (this.cedictNativeQuery ??= await RadixTree.load(
-          await this.storage.ensureFileExists(
-            "cedict-native.bin",
-            cedictNativeUrl,
-            progressTracker,
-          ),
-        ));
-      }
+      return (this.jmdictNativeQuery ??= await RadixTree.load(
+        await this.storage.ensureFileExists("jmdict-native.bin", jmdictNativeUrl, progressTracker),
+      ));
+    }
+  }
+
+  private async getInvertedIndex(
+    language: Language,
+    progressTracker?: ProgressTracker,
+  ): Promise<InvertedIndex> {
+    if (!this.storage) {
+      throw new Error("Dictionary not initialized");
+    }
+
+    if (language === Language.Chinese) {
+      return (this.cedictEnglishQuery ??= await InvertedIndex.load(
+        await this.storage.ensureFileExists(
+          "cedict-english.bin",
+          cedictEnglishUrl,
+          progressTracker,
+        ),
+      ));
+    } else {
+      return (this.jmdictEnglishQuery ??= await InvertedIndex.load(
+        await this.storage.ensureFileExists(
+          "jmdict-english.bin",
+          jmdictEnglishUrl,
+          progressTracker,
+        ),
+      ));
     }
   }
 

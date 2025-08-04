@@ -169,7 +169,7 @@ func processPinyin(pinyin string) string {
 	b := strings.Builder{}
 	for _, c := range pinyin {
 		l := unicode.ToLower(c)
-		if 'a' <= l && l <= 'z' {
+		if 'a' <= l && l <= 'z' || '1' <= l && l <= '5' {
 			b.WriteRune(l)
 		}
 	}

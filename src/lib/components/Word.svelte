@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type DictionaryEntry } from "../dict";
-  import { segmentFurigana, segmentPinyin, toneNumbersToAccents } from "../word";
+  import { segmentFurigana } from "../format/furigana";
+  import { formatPinyin, segmentPinyin } from "../format/pinyin";
 
   const { word }: { word: DictionaryEntry } = $props();
 </script>
@@ -27,7 +28,7 @@
         {/each}
       </ruby>
     {:else}
-      {@const segments = segmentPinyin(word.simplified, toneNumbersToAccents(word.pinyin))}
+      {@const segments = segmentPinyin(word.simplified, formatPinyin(word.pinyin))}
       <ruby class="wordTitleBase">
         {#each segments as segment}
           <span class="fontSimplifiedChinese">{segment.hanzi}</span><rt class="pinyin"
@@ -128,7 +129,7 @@
   .headlineSpacer {
     flex: 1;
     height: 2px;
-    margin: 0 16px;
+    margin-left: 16px;
     background-color: var(--t-secondary);
   }
 

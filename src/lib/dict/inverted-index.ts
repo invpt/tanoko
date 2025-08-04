@@ -1,3 +1,4 @@
+import { EnglishQuery } from "../query/interfaces";
 import { Decoder, StreamDecoder } from "./decode";
 import { FileReader } from "./storage-interfaces";
 
@@ -46,8 +47,8 @@ export class InvertedIndex {
     return new InvertedIndex(entriesData, indexData, commonWordsTableData, commonWords);
   }
 
-  *search(query: string): Generator<number, undefined, undefined> {
-    const tokens = this.tokenize(query);
+  *search(query: EnglishQuery): Generator<number, undefined, undefined> {
+    const tokens = this.tokenize(query.query);
     if (tokens.length === 0) return;
 
     let { commonTokens, nonCommonTokens } = this.categorizeTokens(tokens);

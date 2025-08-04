@@ -1,9 +1,10 @@
 <script lang="ts">
   import { searchParams } from "sv-router";
-  import { dict, Language, QueryType, type DictionaryEntry } from "../lib/dict";
+  import { dict, Language, type DictionaryEntry } from "../lib/dict";
   import Word from "../lib/components/Word.svelte";
   import { processQuery } from "../lib/query";
   import { Languages } from "lucide-svelte";
+  import { type Query } from "../lib/query/interfaces";
 
   const query = $derived(searchParams.get("q"));
   const language = $derived.by(() => {
@@ -17,24 +18,17 @@
     }
   });
 
-  let processed = $state.raw<{
-    query: string;
-    queryType: QueryType;
-    kind: string;
-    brackets: readonly [string, string];
-  }>();
-  let alternative = $state.raw<{
-    query: string;
-    queryType: QueryType;
-    kind: string;
-    brackets: readonly [string, string];
-  }>();
+  // TODO: useAlternative should be in the query params
+  let useAlternative = $state(false);
+
+  let direct = $state.raw<Query | null>();
+  let alternative = $state.raw<Query | null>();
 
   $effect(() => {
     if (language != null && query != null) {
-      [processed, alternative] = processQuery(query, language);
+      [direct, alternative] = processQuery(query, language);
     } else {
-      processed = undefined;
+      direct = undefined;
       alternative = undefined;
     }
   });
@@ -47,8 +41,12 @@
   let loadingTimeout: number | undefined;
 
   $effect(() => {
-    if (processed != null && language != null) {
-      generator = dict.search(processed.query, language, processed.queryType);
+    if (direct != null && language != null) {
+      generator =
+        useAlternative && alternative != null
+          ? dict.search(alternative, language)
+          : dict.search(direct, language);
+
       hasMoreResults = true;
       clearLoadingState();
 
@@ -126,18 +124,23 @@
       return () => window.removeEventListener("scroll", handleScroll);
     }
   });
-
-  const swapToAlternative = () => {
-    [processed, alternative] = [alternative, processed];
-  };
 </script>
 
 <main>
-  {#if processed != null && alternative != null}
-    <button class="alternative" onclick={swapToAlternative}>
-      <Languages class="alternativeIcon" /> Searching{processed
-        .brackets[0]}{processed.query}{processed.brackets[1]}({processed.kind}). Click to search by {alternative.kind}{alternative
-        .brackets[0]}{alternative.query}{alternative.brackets[1]}instead.
+  {#if direct != null}
+    <button
+      class={{ alternative: true, active: alternative != null }}
+      onclick={alternative != null ? () => (useAlternative = !useAlternative) : undefined}
+    >
+      {#if alternative != null}
+        {@const current = useAlternative ? alternative : direct}
+        {@const other = useAlternative ? direct : alternative}
+
+        <Languages class="alternativeIcon" /> Searching{current}({current.kind()}). Click to search
+        by {other.kind()}{other}instead.
+      {:else}
+        <Languages class="alternativeIcon" /> Searching{direct}({direct.kind()}).
+      {/if}
     </button>
   {/if}
 
@@ -153,7 +156,7 @@
     {#if !hasMoreResults}
       <div class="end-message">No more results</div>
     {/if}
-  {:else if processed != null}
+  {:else if direct != null}
     {#if showLoadingIndicator}
       <div class="loading">Loading...</div>
     {:else if !isLoading}
@@ -172,7 +175,6 @@
 
   .alternative {
     all: unset;
-    cursor: pointer;
     user-select: none;
 
     display: flex;
@@ -180,11 +182,15 @@
     gap: 8px;
     margin: 0 auto;
 
-    color: var(--t-on-background);
+    color: color-mix(in srgb, var(--t-on-background) 75%, transparent);
     font-size: 0.9em;
   }
 
-  .alternative:hover {
+  .alternative.active {
+    cursor: pointer;
+  }
+
+  .alternative.active:hover {
     text-decoration: underline;
   }
 
@@ -198,13 +204,12 @@
   .end-message,
   .no-results {
     text-align: center;
-    padding: 20px;
-    color: #666;
-    font-style: italic;
+    padding: 16px 0;
+    color: color-mix(in srgb, var(--t-on-background) 25%, transparent);
   }
 
   .end-message {
-    border-top: 1px solid #eee;
-    margin-top: 20px;
+    border-top: 2px solid var(--t-secondary);
+    margin-top: 16px;
   }
 </style>

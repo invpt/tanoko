@@ -1,14 +1,17 @@
 <script lang="ts">
-  import { type DictionaryEntry } from "../dict";
+  import { p } from "../../router";
+  import { Language, type DictionaryEntry } from "../dict";
   import { segmentFurigana } from "../format/furigana";
   import { formatPinyin, segmentPinyin } from "../format/pinyin";
 
   const { word }: { word: DictionaryEntry } = $props();
+
+  const rank = $derived((word.index + 1).toLocaleString());
 </script>
 
 <div class="word">
-  <div class="wordHeadline">
-    {#if word.type === "jmdict"}
+  <div class="headline">
+    {#if word.language === Language.Japanese}
       {@const segments = segmentFurigana(
         word.kanji?.[0]?.text ?? word.kana[0].text,
         word.kana[0].text,
@@ -37,15 +40,14 @@
         {/each}
       </ruby>
     {/if}
-    <div class="headlineSkewer">
-      <div class="headlineSkewerSizer fontJapanese">&nbsp;</div>
-      <div class="headlineSpacer"></div>
-      <!--<div class="headlineBadge">Review {reviewIn()}</div>
-      <button class="headlineBadge" onclick={() => {}}> Add to deck </button>-->
-    </div>
+    <a
+      href={p("/word/:lang/:index", { lang: word.language, index: word.index.toString() })}
+      class="rank"
+      title="This word's frequency rank in the dictionary">#{rank}</a
+    >
   </div>
   <div class="sensesWrapper">
-    {#if word.type === "jmdict"}
+    {#if word.language === Language.Japanese}
       <ol class="wordSenses">
         {#each word.sense as sense}
           {#if sense.partOfSpeech}
@@ -75,10 +77,11 @@
     align-items: stretch;
   }
 
-  .wordHeadline {
-    display: flex;
-    flex-direction: row;
-    align-items: baseline;
+  .headline {
+  }
+
+  .rank {
+    color: color-mix(in srgb, var(--t-on-background) 50%, transparent);
   }
 
   .wordTitleBase {
@@ -111,51 +114,6 @@
     visibility: hidden;
   }
 
-  .headlineSkewer {
-    flex: 1;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-  }
-
-  .headlineSkewerSizer {
-    width: 0;
-    visibility: hidden;
-    user-select: none;
-    font-size: 1.75em;
-    font-family: "Noto Serif JP";
-  }
-
-  .headlineSpacer {
-    flex: 1;
-    height: 2px;
-    margin-left: 16px;
-    background-color: var(--t-secondary);
-  }
-
-  .headlineBadge,
-  button.headlineBadge {
-    border-radius: 8px;
-    font-size: 0.8em;
-    background-color: rgb(245, 245, 245);
-    color: rgb(97, 97, 97);
-    padding: 6px;
-  }
-
-  button.headlineBadge {
-    border: none;
-    cursor: pointer;
-    user-select: none;
-    transition:
-      background-color 0.15s,
-      color 0.15s;
-  }
-
-  button.headlineBadge:hover {
-    background-color: black;
-    color: white;
-  }
-
   .sensesWrapper {
     margin: 0 12px;
   }
@@ -171,7 +129,7 @@
     font-size: 0.75em;
   }
 
-  .wordSense {
+  .wordSense:not(:last-child) {
     margin-bottom: 0.25em;
   }
 

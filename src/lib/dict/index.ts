@@ -19,7 +19,9 @@ import { EnglishQuery, NativeQuery } from "../query/interfaces";
 
 export type { JMdictWord, Kanjidic2Character };
 
-export type DictionaryEntry = (JMdictWord & { type: "jmdict" }) | (CedictWord & { type: "cedict" });
+export type DictionaryEntry =
+  | (CedictWord & { language: Language.Chinese; index: number })
+  | (JMdictWord & { language: Language.Japanese; index: number });
 
 export type CedictWord = {
   traditional: string;
@@ -73,6 +75,12 @@ class Dictionary {
         yield entry;
       }
     }
+  }
+
+  async loadEntry(index: number, language: Language): Promise<DictionaryEntry | undefined> {
+    await this.initialize();
+    const loader = await this.getEntryLoader(language);
+    return loader.loadEntry(index);
   }
 
   private async getEntryLoader(
@@ -168,7 +176,7 @@ class Dictionary {
 
 export const dict = new Dictionary();
 
-function parseJmdictEntry(decoder: Decoder): DictionaryEntry | undefined {
+function parseJmdictEntry(index: number, decoder: Decoder): DictionaryEntry | undefined {
   try {
     const id = decoder.string();
 
@@ -217,13 +225,13 @@ function parseJmdictEntry(decoder: Decoder): DictionaryEntry | undefined {
       }),
     );
 
-    return { id, kanji, kana, sense, type: "jmdict" };
+    return { index, id, kanji, kana, sense, language: Language.Japanese };
   } catch {
     return undefined;
   }
 }
 
-function parseCedictEntry(decoder: Decoder): DictionaryEntry | undefined {
+function parseCedictEntry(index: number, decoder: Decoder): DictionaryEntry | undefined {
   try {
     const traditional = decoder.string();
     const simplified = decoder.string();
@@ -232,7 +240,7 @@ function parseCedictEntry(decoder: Decoder): DictionaryEntry | undefined {
       decoder.iterArray(() => Array.from(decoder.iterArray(() => decoder.string()))),
     );
 
-    return { traditional, simplified, pinyin, senses, type: "cedict" };
+    return { index, traditional, simplified, pinyin, senses, language: Language.Chinese };
   } catch {
     return undefined;
   }

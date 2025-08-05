@@ -145,8 +145,9 @@
   {/if}
 
   {#if results.length > 0}
-    {#each results as result (result.type === "jmdict" ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
+    {#each results as result (result.language === Language.Japanese ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
       <Word word={result} />
+      <div class="divider"></div>
     {/each}
 
     {#if showLoadingIndicator && hasMoreResults}
@@ -167,10 +168,10 @@
 
 <style>
   main {
-    margin: 20px 24px 0 24px;
+    margin: 20px 24px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 20px;
   }
 
   .alternative {
@@ -204,12 +205,10 @@
   .end-message,
   .no-results {
     text-align: center;
-    padding: 16px 0;
     color: color-mix(in srgb, var(--t-on-background) 25%, transparent);
   }
 
-  .end-message {
+  .divider {
     border-top: 2px solid var(--t-secondary);
-    margin-top: 16px;
   }
 </style>

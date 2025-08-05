@@ -4,12 +4,12 @@ import { FileReader } from "./storage-interfaces";
 export class WordLoader<T> {
   private dataReader: FileReader;
   private offsetsDecoder: Decoder;
-  private parseFunction: (decoder: Decoder) => T | undefined;
+  private parseFunction: (rank: number, decoder: Decoder) => T | undefined;
 
   private constructor(
     dataReader: FileReader,
     offsetsDecoder: Decoder,
-    parseFunction: (decoder: Decoder) => T | undefined,
+    parseFunction: (rank: number, decoder: Decoder) => T | undefined,
   ) {
     this.dataReader = dataReader;
     this.offsetsDecoder = offsetsDecoder;
@@ -19,7 +19,7 @@ export class WordLoader<T> {
   static async load<T>(
     dataReader: FileReader,
     offsetsReader: FileReader,
-    parseFunction: (decoder: Decoder) => T | undefined,
+    parseFunction: (rank: number, decoder: Decoder) => T | undefined,
   ): Promise<WordLoader<T>> {
     const offsetsBuffer = await offsetsReader.read();
     const offsetsDecoder = new Decoder(new Uint8Array(offsetsBuffer));
@@ -36,7 +36,7 @@ export class WordLoader<T> {
 
     const buffer = await this.dataReader.read(startOffset, endOffset);
 
-    return this.parseFunction(new Decoder(new Uint8Array(buffer)));
+    return this.parseFunction(id, new Decoder(new Uint8Array(buffer)));
   }
 
   private getOffset(index: number): number {

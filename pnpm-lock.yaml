@@ -14,6 +14,9 @@ importers:
       sv-router:
         specifier: ^0.7.2
         version: 0.7.2(svelte@5.37.1)
+      ts-fsrs:
+        specifier: ^5.2.1
+        version: 5.2.1
     devDependencies:
       '@scriptin/jmdict-simplified-types':
         specifier: ^3.6.1
@@ -496,6 +499,10 @@ packages:
     resolution: {integrity: sha512-tX5e7OM1HnYr2+a2C/4V0htOcSQcoSTH9KgJnVvNm5zm/cyEWKJ7j7YutsH9CxMdtOkkLFy2AHrMci9IM8IPZQ==}
     engines: {node: '>=12.0.0'}
 
+  ts-fsrs@5.2.1:
+    resolution: {integrity: sha512-gyMwhrn08AFTGAjjevsih5M8cVvJee7UNNUn8MRLpZxHHrGm8S/C7+C20s2M02EuM/Zu/RlYcPq66VNmHAOy4Q==}
+    engines: {node: '>=18.0.0'}
+
   typescript@5.8.3:
     resolution: {integrity: sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ==}
     engines: {node: '>=14.17'}
@@ -914,6 +921,8 @@ snapshots:
     dependencies:
       fdir: 6.4.6(picomatch@4.0.3)
       picomatch: 4.0.3
+
+  ts-fsrs@5.2.1: {}
 
   typescript@5.8.3: {}
 

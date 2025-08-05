@@ -85,7 +85,7 @@
     </button>
   </span>
   <div class="buttons">
-    <a class="settings" href="/settings"> Settings </a>
+    <a class="reviews" href="/reviews">Reviews</a>
   </div>
 </nav>
 
@@ -212,7 +212,7 @@
     flex-wrap: wrap;
   }
 
-  .settings {
+  .reviews {
     color: var(--t-on-secondary);
   }
 </style>

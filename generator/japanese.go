@@ -59,7 +59,7 @@ func sortJmdictByFrequency(jm jmdict.JMdict) error {
 		if len(word.Kanji) > 0 && word.Kanji[0].Common && !word.Kana[0].Common {
 			return getStringFreq(word.Kanji[0].Text)
 		} else if len(word.Kanji) > 0 && word.Kanji[0].Common && word.Kana[0].Common {
-			return getStringFreq(word.Kana[0].Text) + getStringFreq(word.Kanji[0].Text)
+			return 2 / (1/getStringFreq(word.Kana[0].Text) + 1/getStringFreq(word.Kanji[0].Text))
 		} else {
 			return getStringFreq(word.Kana[0].Text)
 		}

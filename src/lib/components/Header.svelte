@@ -34,8 +34,8 @@
     }
 
     if (isActive("/search")) {
-      searchParams.set("q", query);
-      searchParams.set("lang", language);
+      searchParams.set("q", query, { replace: true });
+      searchParams.set("lang", language, { replace: true });
     } else {
       navigate("/search", {
         search: new URLSearchParams({ q: query, lang: language }).toString(),

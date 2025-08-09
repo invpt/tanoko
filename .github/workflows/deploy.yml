@@ -23,6 +23,16 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+      - name: Get week number
+        id: date
+        run: echo "week=$(date +'%Y-W%U')" >> $GITHUB_OUTPUT
+      - name: Cache generator files
+        uses: actions/cache@v4
+        with:
+          path: generator/cache
+          key: generator-cache-${{ steps.date.outputs.week }}
+          restore-keys: |
+            generator-cache-
       - name: Download rclone
         run: |
           curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip

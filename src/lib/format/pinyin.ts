@@ -15,19 +15,21 @@ const toneMap: Record<string, string[]> = {
   o: ["o", "ō", "ó", "ǒ", "ò"],
   u: ["u", "ū", "ú", "ǔ", "ù"],
   ü: ["ü", "ǖ", "ǘ", "ǚ", "ǜ"],
+  r: ["r", "r", "r", "r", "r"],
   A: ["A", "Ā", "Á", "Ă", "À"],
   E: ["E", "Ē", "É", "Ě", "È"],
   I: ["I", "Ī", "Í", "Ǐ", "Ì"],
   O: ["O", "Ō", "Ó", "Ǒ", "Ò"],
   U: ["U", "Ū", "Ú", "Ǔ", "Ù"],
   Ü: ["Ü", "Ǖ", "Ǘ", "Ǚ", "Ǜ"],
+  R: ["R", "R", "R", "R", "R"],
 };
 
 export function formatPinyin(pinyin: string): string {
   // Replace u: with ü
   const input = pinyin.replace(/u:/g, "ü");
 
-  const vowels = new Set(["a", "e", "i", "o", "u", "ü", "A", "E", "I", "O", "U", "Ü"]);
+  const vowels = new Set(["a", "e", "i", "o", "u", "ü", "r", "A", "E", "I", "O", "U", "Ü", "R"]);
   let result = "";
   let lastProcessedIndex = 0;
 

@@ -29,31 +29,41 @@ type githubReleaseAsset struct {
 
 var client = &http.Client{Timeout: 10 * time.Second}
 
-func fetchJMdict() (jm jmdict.JMdict, kj jmdict.Kanjidic2, err error) {
-	if isCached("jmdict.json") && isCached("kanjidic2.json") {
+func fetchJMdict() (jm jmdict.JMdict, jmne jmdict.JMnedict, kj jmdict.Kanjidic2, err error) {
+	if isCached("jmdict.json") && isCached("jmnedict.json") && isCached("kanjidic2.json") {
 		fmt.Println("Using cached JMdict data")
 
 		jmdictFile, err := loadFromCache("jmdict.json")
 		if err != nil {
-			return jm, kj, err
+			return jm, jmne, kj, err
 		}
 		defer jmdictFile.Close()
 
 		if err := json.NewDecoder(jmdictFile).Decode(&jm); err != nil {
-			return jm, kj, err
+			return jm, jmne, kj, err
+		}
+
+		jmnedictFile, err := loadFromCache("jmnedict.json")
+		if err != nil {
+			return jm, jmne, kj, err
+		}
+		defer jmnedictFile.Close()
+
+		if err := json.NewDecoder(jmnedictFile).Decode(&jmne); err != nil {
+			return jm, jmne, kj, err
 		}
 
 		kanjidicFile, err := loadFromCache("kanjidic2.json")
 		if err != nil {
-			return jm, kj, err
+			return jm, jmne, kj, err
 		}
 		defer kanjidicFile.Close()
 
 		if err := json.NewDecoder(kanjidicFile).Decode(&kj); err != nil {
-			return jm, kj, err
+			return jm, jmne, kj, err
 		}
 
-		return jm, kj, nil
+		return jm, jmne, kj, nil
 	}
 
 	fmt.Println("Downloading JMdict data...")
@@ -70,23 +80,30 @@ func fetchJMdict() (jm jmdict.JMdict, kj jmdict.Kanjidic2, err error) {
 
 	latestRelease := releases[0]
 
-	var jmdictUrl, kanjidicUrl string
+	var jmdictUrl, jmnedictUrl, kanjidicUrl string
 	for _, asset := range latestRelease.Assets {
 		if strings.HasSuffix(asset.Name, ".json.tgz") {
 			if strings.HasPrefix(asset.Name, "jmdict-eng") {
 				jmdictUrl = asset.BrowserDownloadUrl
+			} else if strings.HasPrefix(asset.Name, "jmnedict-all") {
+				jmnedictUrl = asset.BrowserDownloadUrl
 			} else if strings.HasPrefix(asset.Name, "kanjidic2-en") {
 				kanjidicUrl = asset.BrowserDownloadUrl
 			}
 		}
 	}
 
-	if jmdictUrl == "" || kanjidicUrl == "" {
+	if jmdictUrl == "" || jmnedictUrl == "" || kanjidicUrl == "" {
 		err = errors.New("did not find JMdict and/or Kanjidic URL")
 		return
 	}
 
 	err = fetchJsonFromTarGzAndCache(jmdictUrl, "jmdict.json", &jm)
+	if err != nil {
+		return
+	}
+
+	err = fetchJsonFromTarGzAndCache(jmnedictUrl, "jmnedict.json", &jmne)
 	if err != nil {
 		return
 	}

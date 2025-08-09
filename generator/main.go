@@ -40,14 +40,14 @@ func main() {
 		panic(err)
 	}
 
-	jm, kj, err := fetchJMdict()
+	jm, jmne, kj, err := fetchJMdict()
 	if err != nil {
 		panic(err)
 	}
 
 	fmt.Println("Generating files...")
 
-	if err := generateJapanese(jm, kj, outputDir); err != nil {
+	if err := generateJapanese(jm, jmne, kj, outputDir); err != nil {
 		panic(err)
 	}
 

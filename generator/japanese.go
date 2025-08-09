@@ -14,22 +14,23 @@ import (
 	"github.com/invpt/wordfreq"
 )
 
-func generateJapanese(jm jmdict.JMdict, kj jmdict.Kanjidic2, outputDir string) error {
+func generateJapanese(jm jmdict.JMdict, jmne jmdict.JMnedict, kj jmdict.Kanjidic2, outputDir string) error {
 	sortJmdictByFrequency(jm)
+	sortAndFilterJmnedictByFrequency(&jmne)
 
-	if err := writeJmdictBinary(jm, outputDir); err != nil {
+	if err := writeJmdictBinary(jm, jmne, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict binary: %w", err)
 	}
 
-	if err := writeJmdictNativeRadix(jm, outputDir); err != nil {
+	if err := writeJmdictNativeRadix(jm, jmne, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict native radix: %w", err)
 	}
 
-	if err := writeJmdictEnglishIndex(jm, outputDir); err != nil {
+	if err := writeJmdictEnglishIndex(jm, jmne, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict english index: %w", err)
 	}
 
-	if err := writeJmdictRefRadix(jm, outputDir); err != nil {
+	if err := writeJmdictRefRadix(jm, jmne, outputDir); err != nil {
 		return fmt.Errorf("failed to write jmdict ref radix: %w", err)
 	}
 
@@ -72,7 +73,59 @@ func sortJmdictByFrequency(jm jmdict.JMdict) error {
 	return nil
 }
 
-func writeJmdictBinary(jm jmdict.JMdict, outputDir string) error {
+func sortAndFilterJmnedictByFrequency(jmne *jmdict.JMnedict) error {
+	wf, err := wordfreq.New()
+	if err != nil {
+		return fmt.Errorf("failed to initialize wordfreq: %w", err)
+	}
+
+	freqs := map[string]float64{}
+	getStringFreq := func(word string) float64 {
+		if freq, ok := freqs[word]; ok {
+			return freq
+		} else {
+			freq, err := wf.WordFrequency(word, wordfreq.LanguageJapanese, wordfreq.WordlistBest, 0.0)
+			if err != nil {
+				panic(err)
+			}
+			freqs[word] = freq
+			return freq
+		}
+	}
+	getFreq := func(word jmdict.JMnedictWord) float64 {
+		if len(word.Kanji) > 0 {
+			return getStringFreq(word.Kanji[0].Text)
+		} else {
+			return getStringFreq(word.Kana[0].Text)
+		}
+	}
+
+	sort.Slice(jmne.Words, func(i, j int) bool {
+		return getFreq(jmne.Words[i]) > getFreq(jmne.Words[j])
+	})
+
+	// Aggressive filtering for now to keep results clean until we split names into separate DB
+	isRemovable := func(tag jmdict.Tag) bool { return tag == "place" || tag == "unclass" || tag == "person" }
+	n := min(50_000, len(jmne.Words))
+	for i := n; i < len(jmne.Words) && n < 100_000; i++ {
+		removable := true
+		for _, t := range jmne.Words[i].Translation {
+			for _, ty := range t.Type {
+				removable = removable && isRemovable(ty)
+			}
+		}
+
+		if !removable {
+			jmne.Words[n] = jmne.Words[i]
+			n++
+		}
+	}
+	jmne.Words = jmne.Words[:n]
+
+	return nil
+}
+
+func writeJmdictBinary(jm jmdict.JMdict, jmne jmdict.JMnedict, outputDir string) error {
 	file, err := os.Create(filepath.Join(outputDir, "jmdict.bin"))
 	if err != nil {
 		return err
@@ -133,6 +186,52 @@ func writeJmdictBinary(jm jmdict.JMdict, outputDir string) error {
 		}
 	}
 
+	for _, word := range jmne.Words {
+		b, err := s.Append()
+		if err != nil {
+			return err
+		}
+
+		encode.Uint32(offsets, uint32(s.Offset()))
+
+		encode.String(b, word.ID)
+
+		for _, k := range encode.Array(b, word.Kanji) {
+			encode.String(b, k.Text)
+			encode.Bool(b, false)
+			tags := encode.Array(b, k.Tags)
+			for _, tag := range tags {
+				encode.String(b, string(tag))
+			}
+		}
+
+		for _, k := range encode.Array(b, word.Kana) {
+			encode.String(b, k.Text)
+			encode.Bool(b, false)
+			for _, tag := range encode.Array(b, k.Tags) {
+				encode.String(b, string(tag))
+			}
+			for _, applies := range encode.Array(b, k.AppliesToKanji) {
+				encode.String(b, applies)
+			}
+		}
+
+		for _, sense := range encode.Array(b, word.Translation) {
+			for range encode.Array(b, []struct{}{}) {
+			}
+
+			for range encode.Array(b, []struct{}{}) {
+			}
+
+			for range encode.Array(b, []struct{}{}) {
+			}
+
+			for _, gloss := range encode.Array(b, sense.Translation) {
+				encode.String(b, gloss.Text)
+			}
+		}
+	}
+
 	if err := s.Flush(); err != nil {
 		return err
 	}
@@ -153,7 +252,7 @@ func writeJmdictBinary(jm jmdict.JMdict, outputDir string) error {
 	return nil
 }
 
-func writeJmdictNativeRadix(jm jmdict.JMdict, outputDir string) error {
+func writeJmdictNativeRadix(jm jmdict.JMdict, jmne jmdict.JMnedict, outputDir string) error {
 	tree := radix.New()
 
 	for index, word := range jm.Words {
@@ -163,6 +262,16 @@ func writeJmdictNativeRadix(jm jmdict.JMdict, outputDir string) error {
 
 		for _, kana := range word.Kana {
 			tree.Add(kana.Text, uint32(index))
+		}
+	}
+
+	for index, word := range jmne.Words {
+		for _, kanji := range word.Kanji {
+			tree.Add(kanji.Text, uint32(index+len(jm.Words)))
+		}
+
+		for _, kana := range word.Kana {
+			tree.Add(kana.Text, uint32(index+len(jm.Words)))
 		}
 	}
 
@@ -177,7 +286,7 @@ func writeJmdictNativeRadix(jm jmdict.JMdict, outputDir string) error {
 	return tree.Export(file)
 }
 
-func writeJmdictEnglishIndex(jm jmdict.JMdict, outputDir string) error {
+func writeJmdictEnglishIndex(jm jmdict.JMdict, jmne jmdict.JMnedict, outputDir string) error {
 	builder := index.NewBuilder()
 
 	for index, word := range jm.Words {
@@ -185,6 +294,16 @@ func writeJmdictEnglishIndex(jm jmdict.JMdict, outputDir string) error {
 			for _, gloss := range sense.Gloss {
 				if strings.TrimSpace(gloss.Text) != "" {
 					builder.Add(gloss.Text, uint32(index), senseIdx)
+				}
+			}
+		}
+	}
+
+	for index, word := range jmne.Words {
+		for senseIdx, sense := range word.Translation {
+			for _, gloss := range sense.Translation {
+				if strings.TrimSpace(gloss.Text) != "" {
+					builder.Add(gloss.Text, uint32(index+len(jm.Words)), senseIdx)
 				}
 			}
 		}
@@ -202,11 +321,15 @@ func writeJmdictEnglishIndex(jm jmdict.JMdict, outputDir string) error {
 	return idx.Export(file)
 }
 
-func writeJmdictRefRadix(jm jmdict.JMdict, outputDir string) error {
+func writeJmdictRefRadix(jm jmdict.JMdict, jmne jmdict.JMnedict, outputDir string) error {
 	tree := radix.New()
 
 	for index, word := range jm.Words {
 		tree.Add(word.ID, uint32(index))
+	}
+
+	for index, word := range jmne.Words {
+		tree.Add(word.ID, uint32(index+len(jm.Words)))
 	}
 
 	tree.PrintStats("JMdict ref radix")

@@ -16,16 +16,17 @@
         word.kanji?.[0]?.text ?? word.kana[0].text,
         word.kana[0].text,
       )}
+      {@const hasAnyReading = segments.some((el) => el.kana.length > 0)}
       <ruby class="wordTitleBase fontJapanese">
         {#each segments as el}
-          {el.kanji}{#if el.reading.length > 0}
+          {el.kanji}{#if hasAnyReading}
             <rt
               class={{
                 hiddenReading: false,
                 reading: true,
               }}
             >
-              {el.reading}
+              {el.kana}
             </rt>
           {/if}
         {/each}

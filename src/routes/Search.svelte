@@ -5,6 +5,7 @@
   import { processQuery } from "../lib/query";
   import { Languages } from "lucide-svelte";
   import { type Query } from "../lib/query/interfaces";
+  import { ItemType } from "../lib/item";
 
   const query = $derived(searchParams.get("q"));
   const language = $derived.by(() => {
@@ -137,7 +138,7 @@
         {@const other = useAlternative ? direct : alternative}
 
         <Languages class="alternativeIcon" /> Searching{current}({current.kind()}). Click to search
-        by {other.kind()}{other}instead.
+        by {other.kind()} instead.
       {:else}
         <Languages class="alternativeIcon" /> Searching{direct}({direct.kind()}).
       {/if}
@@ -145,7 +146,7 @@
   {/if}
 
   {#if results.length > 0}
-    {#each results as result (result.language === Language.Japanese ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
+    {#each results as result (result.type === ItemType.jmdict ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
       <Word word={result} />
       <div class="divider"></div>
     {/each}

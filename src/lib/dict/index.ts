@@ -1,6 +1,6 @@
 import { type JMdictWord, type Kanjidic2Character } from "@scriptin/jmdict-simplified-types";
-import { StorageFactory } from "./storage-factory";
-import { FileStorage } from "./storage-interfaces";
+import { StorageFactory } from "./storage/factory";
+import { FileStorage } from "./storage/interfaces";
 
 import cedictEnglishUrl from "../../assets/gen/cedict-english.bin?url";
 import cedictNativeUrl from "../../assets/gen/cedict-native.bin?url";
@@ -14,14 +14,15 @@ import { Decoder } from "./decode";
 import { WordLoader } from "./word-loader";
 import { RadixTree } from "./radix-tree";
 import { InvertedIndex } from "./inverted-index";
-import { ProgressTracker } from "./progress-tracker";
+import { ProgressTracker } from "./storage/progress-tracker";
 import { EnglishQuery, NativeQuery } from "../query/interfaces";
+import { ItemType } from "../item";
 
 export type { JMdictWord, Kanjidic2Character };
 
 export type DictionaryEntry =
-  | (CedictWord & { language: Language.Chinese; index: number })
-  | (JMdictWord & { language: Language.Japanese; index: number });
+  | (CedictWord & { type: ItemType.cedict; index: number })
+  | (JMdictWord & { type: ItemType.jmdict; index: number });
 
 export type CedictWord = {
   traditional: string;
@@ -225,7 +226,7 @@ function parseJmdictEntry(index: number, decoder: Decoder): DictionaryEntry | un
       }),
     );
 
-    return { index, id, kanji, kana, sense, language: Language.Japanese };
+    return { index, id, kanji, kana, sense, type: ItemType.jmdict };
   } catch {
     return undefined;
   }
@@ -240,7 +241,7 @@ function parseCedictEntry(index: number, decoder: Decoder): DictionaryEntry | un
       decoder.iterArray(() => Array.from(decoder.iterArray(() => decoder.string()))),
     );
 
-    return { index, traditional, simplified, pinyin, senses, language: Language.Chinese };
+    return { index, traditional, simplified, pinyin, senses, type: ItemType.cedict };
   } catch {
     return undefined;
   }

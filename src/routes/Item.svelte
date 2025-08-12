@@ -1,13 +1,14 @@
 <script lang="ts">
   import Word from "../lib/components/Word.svelte";
   import { dict, Language } from "../lib/dict";
+  import { ItemType } from "../lib/item";
   import { route } from "../router";
 
-  const params = $derived(route.getParams("/word/:lang/:index"));
+  const params = $derived(route.getParams("/item/:type/:index"));
   const promise = $derived(
     dict.loadEntry(
       parseInt(params.index),
-      params.lang === Language.Chinese ? Language.Chinese : Language.Japanese,
+      params.type === ItemType.cedict ? Language.Chinese : Language.Japanese,
     ),
   );
 </script>

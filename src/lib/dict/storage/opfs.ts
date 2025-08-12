@@ -1,4 +1,4 @@
-import { FileStorage, FileReader } from "./storage-interfaces";
+import { FileStorage, FileReader } from "./interfaces";
 import { BlobFileReader } from "./blob-file-reader";
 import { ProgressTracker } from "./progress-tracker";
 

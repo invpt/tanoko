@@ -3,6 +3,7 @@
   import { Language, type DictionaryEntry } from "../dict";
   import { segmentFurigana } from "../format/furigana";
   import { formatPinyin, segmentPinyin } from "../format/pinyin";
+  import { ItemType } from "../item";
 
   const { word }: { word: DictionaryEntry } = $props();
 
@@ -11,7 +12,7 @@
 
 <div class="word">
   <div class="headline">
-    {#if word.language === Language.Japanese}
+    {#if word.type === ItemType.jmdict}
       {@const segments = segmentFurigana(
         word.kanji?.[0]?.text ?? word.kana[0].text,
         word.kana[0].text,
@@ -42,13 +43,13 @@
       </ruby>
     {/if}
     <a
-      href={p("/word/:lang/:index", { lang: word.language, index: word.index.toString() })}
+      href={p("/item/:type/:index", { type: word.type, index: word.index.toString() })}
       class="rank"
       title="This word's frequency rank in the dictionary">#{rank}</a
     >
   </div>
   <div class="sensesWrapper">
-    {#if word.language === Language.Japanese}
+    {#if word.type === ItemType.jmdict}
       <ol class="wordSenses">
         {#each word.sense as sense}
           {#if sense.partOfSpeech}

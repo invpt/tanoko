@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      lru-cache:
+        specifier: ^11.1.0
+        version: 11.1.0
       lucide-svelte:
         specifier: ^0.535.0
         version: 0.535.0(svelte@5.37.1)
@@ -572,6 +575,10 @@ packages:
 
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
+
+  lru-cache@11.1.0:
+    resolution: {integrity: sha512-QIXZUBJUx+2zHUdQujWejBkcD9+cs94tLn0+YL8UrCh+D5sCXZ4c7LaEH48pNwRY3MLDgqUFyhlCyjJPf1WP0A==}
+    engines: {node: 20 || >=22}
 
   lucide-svelte@0.535.0:
     resolution: {integrity: sha512-qajkcYp9F2ZaIc0bmiuGWdvOW1A5JminAStI/9A4hZSeQnPeGuCNuHH3kMRzASgi99O3Z38NvMK6/0Lv72yxdQ==}
@@ -1315,6 +1322,8 @@ snapshots:
 
   lru-cache@10.4.3:
     optional: true
+
+  lru-cache@11.1.0: {}
 
   lucide-svelte@0.535.0(svelte@5.37.1):
     dependencies:

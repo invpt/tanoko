@@ -1,6 +1,6 @@
-import { FileStorage } from "./storage-interfaces";
-import { OPFSStorage } from "./opfs-storage";
-import { IndexedDBStorage } from "./indexeddb-storage";
+import { FileStorage } from "./interfaces";
+import { OPFSStorage } from "./opfs";
+import { IndexedDBStorage } from "./indexeddb";
 
 export class StorageFactory {
   private static storageCache = new Map<string, FileStorage>();

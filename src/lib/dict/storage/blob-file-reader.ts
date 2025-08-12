@@ -1,4 +1,4 @@
-import { FileReader } from "./storage-interfaces";
+import { FileReader } from "./interfaces";
 
 export class BlobFileReader implements FileReader {
   constructor(private blob: Blob) {}

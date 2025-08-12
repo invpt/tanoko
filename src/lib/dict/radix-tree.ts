@@ -1,12 +1,12 @@
-import { Query, QueryState } from "../query";
+import { NativeQuery, NativeQueryState } from "../query/interfaces";
 import { Decoder } from "./decode";
-import { FileReader } from "./storage-interfaces";
+import { FileReader } from "./storage/interfaces";
 
 type QueueItem = {
   length: number;
   offset: number;
   edgeLen: number;
-  state: QueryState;
+  state: NativeQueryState;
 };
 
 export class RadixTree {
@@ -32,7 +32,7 @@ export class RadixTree {
     return new RadixTree(decoder, rootOffset, rootEdgeLen);
   }
 
-  *search(query: Query): Generator<number> {
+  *search(query: NativeQuery): Generator<number> {
     const yielded = new Set<number>();
     let currentLength = undefined;
     const results: number[] = [];
@@ -64,7 +64,7 @@ export class RadixTree {
     }
   }
 
-  private *processItem(query: Query, item: QueueItem, queue: QueueItem[]): Generator<number> {
+  private *processItem(query: NativeQuery, item: QueueItem, queue: QueueItem[]): Generator<number> {
     this.decoder.seek(item.offset);
 
     let queryState = item.state;

@@ -1,10 +1,10 @@
-export function segmentPinyin(hanzi: string, pinyin: string): { hanzi: string; pinyin: string }[] {
+export function segmentPinyin(hanzi: string, pinyin: string): { base: string; gloss: string }[] {
   const hanziArr = [...hanzi];
   const pinyinArr = pinyin.split(" ");
   if (hanziArr.length === pinyinArr.length) {
-    return hanziArr.map((char, index) => ({ hanzi: char, pinyin: pinyinArr[index] }));
+    return hanziArr.map((char, index) => ({ base: char, gloss: pinyinArr[index] }));
   } else {
-    return [{ hanzi, pinyin }];
+    return [{ base: hanzi, gloss: pinyin }];
   }
 }
 

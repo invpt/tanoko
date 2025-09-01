@@ -1,6 +1,6 @@
 export type FuriganaSegment = {
-  kanji: string;
-  kana: string;
+  base: string;
+  gloss?: string;
 };
 
 export function segmentFurigana(kanji: string, kana: string): FuriganaSegment[] {
@@ -27,8 +27,8 @@ export function segmentFurigana(kanji: string, kana: string): FuriganaSegment[] 
 
     if (kanjiMatch === -1) {
       segments.push({
-        kanji: kanjiChars.join(""),
-        kana: kanaChars.join(""),
+        base: kanjiChars.join(""),
+        gloss: kanaChars.length > 0 ? kanaChars.join("") : undefined,
       });
       break;
     }
@@ -36,8 +36,8 @@ export function segmentFurigana(kanji: string, kana: string): FuriganaSegment[] 
     // Handle unmatched portion before the match
     if (kanjiMatch > 0) {
       segments.push({
-        kanji: kanjiChars.slice(0, kanjiMatch).join(""),
-        kana: kanaChars.slice(0, kanaMatch).join(""),
+        base: kanjiChars.slice(0, kanjiMatch).join(""),
+        gloss: kanaMatch > 0 ? kanaChars.slice(0, kanaMatch).join("") : undefined,
       });
     }
 
@@ -52,10 +52,7 @@ export function segmentFurigana(kanji: string, kana: string): FuriganaSegment[] 
     }
 
     const matchedKanji = kanjiChars.slice(kanjiMatch, kanjiMatch + matchLength).join("");
-    segments.push({
-      kanji: matchedKanji,
-      kana: "",
-    });
+    segments.push({ base: matchedKanji });
 
     kanjiChars = kanjiChars.slice(kanjiMatch + matchLength);
     kanaChars = kanaChars.slice(kanaMatch + matchLength);

@@ -16,168 +16,168 @@ function isSubsequence(biggerString: string, smallerString: string): boolean {
 }
 
 // Helper function to test pathological inputs by checking invariants
-function expectValidSegmentation(kanji: string, kana: string) {
-  const result = segmentFurigana(kanji, kana);
-  const reconstructedKanji = result.map((s) => s.kanji).join("");
-  const reconstructedKana = result.map((s) => s.kana || s.kanji).join("");
+function expectValidSegmentation(base: string, gloss: string) {
+  const result = segmentFurigana(base, gloss);
+  const reconstructedKanji = result.map((s) => s.base).join("");
+  const reconstructedKana = result.map((s) => s.gloss || s.base).join("");
 
-  expect(reconstructedKanji).toBe(kanji);
+  expect(reconstructedKanji).toBe(base);
   expect(
-    isSubsequence(reconstructedKana, kana),
-    `expected kana '${kana}' to be subsequence of reconstructed '${reconstructedKana}'`,
+    isSubsequence(reconstructedKana, gloss),
+    `expected kana '${gloss}' to be subsequence of reconstructed '${reconstructedKana}'`,
   ).toBeTruthy();
 }
 
 describe("segmentFurigana", () => {
   test("edge cases", () => {
     expect(segmentFurigana("", "")).toEqual([]);
-    expect(segmentFurigana("", "reading")).toEqual([{ kanji: "", kana: "reading" }]);
-    expect(segmentFurigana("kanji", "")).toEqual([{ kanji: "kanji", kana: "" }]);
+    expect(segmentFurigana("", "reading")).toEqual([{ base: "", gloss: "reading" }]);
+    expect(segmentFurigana("kanji", "")).toEqual([{ base: "kanji", gloss: "" }]);
   });
 
   test("basic kanji with readings", () => {
-    expect(segmentFurigana("水", "みず")).toEqual([{ kanji: "水", kana: "みず" }]);
-    expect(segmentFurigana("学校", "がっこう")).toEqual([{ kanji: "学校", kana: "がっこう" }]);
+    expect(segmentFurigana("水", "みず")).toEqual([{ base: "水", gloss: "みず" }]);
+    expect(segmentFurigana("学校", "がっこう")).toEqual([{ base: "学校", gloss: "がっこう" }]);
     expect(segmentFurigana("美術館", "びじゅつかん")).toEqual([
-      { kanji: "美術館", kana: "びじゅつかん" },
+      { base: "美術館", gloss: "びじゅつかん" },
     ]);
     expect(segmentFurigana("国際会議", "こくさいかいぎ")).toEqual([
-      { kanji: "国際会議", kana: "こくさいかいぎ" },
+      { base: "国際会議", gloss: "こくさいかいぎ" },
     ]);
   });
 
   test("kanji with okurigana", () => {
     expect(segmentFurigana("食べる", "たべる")).toEqual([
-      { kanji: "食", kana: "た" },
-      { kanji: "べる", kana: "" },
+      { base: "食", gloss: "た" },
+      { base: "べる", gloss: "" },
     ]);
     expect(segmentFurigana("行きます", "いきます")).toEqual([
-      { kanji: "行", kana: "い" },
-      { kanji: "きます", kana: "" },
+      { base: "行", gloss: "い" },
+      { base: "きます", gloss: "" },
     ]);
     expect(segmentFurigana("読む", "よむ")).toEqual([
-      { kanji: "読", kana: "よ" },
-      { kanji: "む", kana: "" },
+      { base: "読", gloss: "よ" },
+      { base: "む", gloss: "" },
     ]);
     expect(segmentFurigana("新しい", "あたらしい")).toEqual([
-      { kanji: "新", kana: "あたら" },
-      { kanji: "しい", kana: "" },
+      { base: "新", gloss: "あたら" },
+      { base: "しい", gloss: "" },
     ]);
     expect(segmentFurigana("小さい頃", "ちいさいころ")).toEqual([
-      { kanji: "小", kana: "ちい" },
-      { kanji: "さい", kana: "" },
-      { kanji: "頃", kana: "ころ" },
+      { base: "小", gloss: "ちい" },
+      { base: "さい", gloss: "" },
+      { base: "頃", gloss: "ころ" },
     ]);
   });
 
   test("exact matches get no reading", () => {
     expect(segmentFurigana("コンピューター", "コンピューター")).toEqual([
-      { kanji: "コンピューター", kana: "" },
+      { base: "コンピューター", gloss: "" },
     ]);
-    expect(segmentFurigana("ひらがな", "ひらがな")).toEqual([{ kanji: "ひらがな", kana: "" }]);
+    expect(segmentFurigana("ひらがな", "ひらがな")).toEqual([{ base: "ひらがな", gloss: "" }]);
     expect(segmentFurigana("しょっぱい", "しょっぱい")).toEqual([
-      { kanji: "しょっぱい", kana: "" },
+      { base: "しょっぱい", gloss: "" },
     ]);
-    expect(segmentFurigana("チャンス", "チャンス")).toEqual([{ kanji: "チャンス", kana: "" }]);
+    expect(segmentFurigana("チャンス", "チャンス")).toEqual([{ base: "チャンス", gloss: "" }]);
     expect(segmentFurigana("ドクター・フー", "ドクター・フー")).toEqual([
-      { kanji: "ドクター・フー", kana: "" },
+      { base: "ドクター・フー", gloss: "" },
     ]);
-    expect(segmentFurigana("ここ", "ここ")).toEqual([{ kanji: "ここ", kana: "" }]);
+    expect(segmentFurigana("ここ", "ここ")).toEqual([{ base: "ここ", gloss: "" }]);
   });
 
   test("single characters", () => {
-    expect(segmentFurigana("a", "a")).toEqual([{ kanji: "a", kana: "" }]);
-    expect(segmentFurigana("あ", "あ")).toEqual([{ kanji: "あ", kana: "" }]);
-    expect(segmentFurigana("ア", "ア")).toEqual([{ kanji: "ア", kana: "" }]);
+    expect(segmentFurigana("a", "a")).toEqual([{ base: "a", gloss: "" }]);
+    expect(segmentFurigana("あ", "あ")).toEqual([{ base: "あ", gloss: "" }]);
+    expect(segmentFurigana("ア", "ア")).toEqual([{ base: "ア", gloss: "" }]);
   });
 
   test("mixed kanji and kana", () => {
     expect(segmentFurigana("日本語の勉強", "にほんごのべんきょう")).toEqual([
-      { kanji: "日本語", kana: "にほんご" },
-      { kanji: "の", kana: "" },
-      { kanji: "勉強", kana: "べんきょう" },
+      { base: "日本語", gloss: "にほんご" },
+      { base: "の", gloss: "" },
+      { base: "勉強", gloss: "べんきょう" },
     ]);
     expect(segmentFurigana("私の本", "わたしのほん")).toEqual([
-      { kanji: "私", kana: "わたし" },
-      { kanji: "の", kana: "" },
-      { kanji: "本", kana: "ほん" },
+      { base: "私", gloss: "わたし" },
+      { base: "の", gloss: "" },
+      { base: "本", gloss: "ほん" },
     ]);
     expect(segmentFurigana("月の兎", "つきのうさぎ")).toEqual([
-      { kanji: "月", kana: "つき" },
-      { kanji: "の", kana: "" },
-      { kanji: "兎", kana: "うさぎ" },
+      { base: "月", gloss: "つき" },
+      { base: "の", gloss: "" },
+      { base: "兎", gloss: "うさぎ" },
     ]);
     expect(segmentFurigana("お疲れ様でした", "おつかれさまでした")).toEqual([
-      { kanji: "お", kana: "" },
-      { kanji: "疲", kana: "つか" },
-      { kanji: "れ", kana: "" },
-      { kanji: "様", kana: "さま" },
-      { kanji: "でした", kana: "" },
+      { base: "お", gloss: "" },
+      { base: "疲", gloss: "つか" },
+      { base: "れ", gloss: "" },
+      { base: "様", gloss: "さま" },
+      { base: "でした", gloss: "" },
     ]);
   });
 
   test("multiple kanji groups", () => {
     expect(segmentFurigana("隠し引き出し", "かくしひきだし")).toEqual([
-      { kanji: "隠", kana: "かく" },
-      { kanji: "し", kana: "" },
-      { kanji: "引", kana: "ひ" },
-      { kanji: "き", kana: "" },
-      { kanji: "出", kana: "だ" },
-      { kanji: "し", kana: "" },
+      { base: "隠", gloss: "かく" },
+      { base: "し", gloss: "" },
+      { base: "引", gloss: "ひ" },
+      { base: "き", gloss: "" },
+      { base: "出", gloss: "だ" },
+      { base: "し", gloss: "" },
     ]);
     expect(segmentFurigana("そんな中", "そんななか")).toEqual([
-      { kanji: "そんな", kana: "" },
-      { kanji: "中", kana: "なか" },
+      { base: "そんな", gloss: "" },
+      { base: "中", gloss: "なか" },
     ]);
     expect(segmentFurigana("どう言う", "どういう")).toEqual([
-      { kanji: "どう", kana: "" },
-      { kanji: "言", kana: "い" },
-      { kanji: "う", kana: "" },
+      { base: "どう", gloss: "" },
+      { base: "言", gloss: "い" },
+      { base: "う", gloss: "" },
     ]);
   });
 
   test("numbers and symbols", () => {
     expect(segmentFurigana("学校！", "がっこう！")).toEqual([
-      { kanji: "学校", kana: "がっこう" },
-      { kanji: "！", kana: "" },
+      { base: "学校", gloss: "がっこう" },
+      { base: "！", gloss: "" },
     ]);
     expect(segmentFurigana("１年生", "いちねんせい")).toEqual([
-      { kanji: "１年生", kana: "いちねんせい" },
+      { base: "１年生", gloss: "いちねんせい" },
     ]);
     expect(segmentFurigana("２０２４年", "にせんにじゅうよねん")).toEqual([
-      { kanji: "２０２４年", kana: "にせんにじゅうよねん" },
+      { base: "２０２４年", gloss: "にせんにじゅうよねん" },
     ]);
     expect(segmentFurigana("ABC３４５", "エービーシーさんよんご")).toEqual([
-      { kanji: "ABC３４５", kana: "エービーシーさんよんご" },
+      { base: "ABC３４５", gloss: "エービーシーさんよんご" },
     ]);
   });
 
   test("mismatches and edge cases", () => {
-    expect(segmentFurigana("あいう", "えおか")).toEqual([{ kanji: "あいう", kana: "えおか" }]);
-    expect(segmentFurigana("水火", "みずひ")).toEqual([{ kanji: "水火", kana: "みずひ" }]);
-    expect(segmentFurigana("水火土", "みず")).toEqual([{ kanji: "水火土", kana: "みず" }]);
+    expect(segmentFurigana("あいう", "えおか")).toEqual([{ base: "あいう", gloss: "えおか" }]);
+    expect(segmentFurigana("水火", "みずひ")).toEqual([{ base: "水火", gloss: "みずひ" }]);
+    expect(segmentFurigana("水火土", "みず")).toEqual([{ base: "水火土", gloss: "みず" }]);
     expect(segmentFurigana("水", "みずのようなもの")).toEqual([
-      { kanji: "水", kana: "みずのようなもの" },
+      { base: "水", gloss: "みずのようなもの" },
     ]);
     expect(segmentFurigana("iPhone", "アイフォーン")).toEqual([
-      { kanji: "iPhone", kana: "アイフォーン" },
+      { base: "iPhone", gloss: "アイフォーン" },
     ]);
     expect(segmentFurigana("１０人", "じゅうにん")).toEqual([
-      { kanji: "１０人", kana: "じゅうにん" },
+      { base: "１０人", gloss: "じゅうにん" },
     ]);
-    expect(segmentFurigana("母", "はは")).toEqual([{ kanji: "母", kana: "はは" }]);
+    expect(segmentFurigana("母", "はは")).toEqual([{ base: "母", gloss: "はは" }]);
   });
 
   test("alternating patterns", () => {
     expect(segmentFurigana("水あ火い", "みずあひい")).toEqual([
-      { kanji: "水", kana: "みず" },
-      { kanji: "あ", kana: "" },
-      { kanji: "火", kana: "ひ" },
-      { kanji: "い", kana: "" },
+      { base: "水", gloss: "みず" },
+      { base: "あ", gloss: "" },
+      { base: "火", gloss: "ひ" },
+      { base: "い", gloss: "" },
     ]);
     expect(segmentFurigana("ああ水", "ああみず")).toEqual([
-      { kanji: "ああ", kana: "" },
-      { kanji: "水", kana: "みず" },
+      { base: "ああ", gloss: "" },
+      { base: "水", gloss: "みず" },
     ]);
   });
 
@@ -199,7 +199,7 @@ describe("segmentFurigana", () => {
   test("repeated character confusion", () => {
     expectValidSegmentation("aab", "baa");
     expectValidSegmentation("abab", "baba");
-    expect(segmentFurigana("aaa", "aaa")).toEqual([{ kanji: "aaa", kana: "" }]);
+    expect(segmentFurigana("aaa", "aaa")).toEqual([{ base: "aaa", gloss: "" }]);
   });
 
   test("one-to-many mappings", () => {

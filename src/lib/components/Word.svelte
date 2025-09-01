@@ -1,6 +1,6 @@
 <script lang="ts">
   import { p } from "../../router";
-  import { Language, type DictionaryEntry } from "../dict";
+  import { type DictionaryEntry } from "../dict";
   import { segmentFurigana } from "../format/furigana";
   import { formatPinyin, segmentPinyin } from "../format/pinyin";
   import { ItemType } from "../item";
@@ -8,46 +8,126 @@
   const { word }: { word: DictionaryEntry } = $props();
 
   const rank = $derived((word.index + 1).toLocaleString());
+
+  const { headline, otherWritings, otherReadings, multipleReadingGroups } = $derived(
+    (() => {
+      if (word.type === ItemType.jmdict) {
+        const arrayEq = (a: string[], b: string[]) =>
+          a.length === b.length && a.every((a, i) => a === b[i]);
+        const readingGroups: string[][] = [];
+        const readings: { group: number; text: string; common: boolean }[] = [];
+        const kanaWritings: { text: string; common: boolean; applicable: [] }[] = [];
+        for (const kana of word.kana) {
+          if (kana.appliesToKanji.length === 0) {
+            kanaWritings.push({ text: kana.text, common: kana.common, applicable: [] });
+          } else {
+            let group = readingGroups.findIndex((g) => arrayEq(g, kana.appliesToKanji));
+            if (group === -1) {
+              group = readingGroups.length;
+              readingGroups.push(kana.appliesToKanji);
+            }
+
+            readings.push({ group, text: kana.text, common: kana.common });
+          }
+        }
+
+        const writings: { text: string; common: boolean; applicable: number[] }[] = [];
+        for (const kanji of word.kanji) {
+          writings.push({
+            text: kanji.text,
+            common: kanji.common,
+            applicable: readingGroups
+              .map((g, i) => [g, i] as const)
+              .filter(([g, _]) => g[0] === "*" || g.includes(kanji.text))
+              .map(([_, i]) => i),
+          });
+        }
+        for (const kanaWriting of kanaWritings) {
+          writings.push(kanaWriting);
+        }
+
+        const useKanjiHeadline =
+          writings.length !== 0 && (writings[0].common || !readings[0].common);
+
+        const headline = useKanjiHeadline
+          ? segmentFurigana(writings[0].text, readings[0].text)
+          : [{ base: readings[0].text, gloss: "" }];
+
+        return {
+          multipleReadingGroups: readingGroups.length > 1,
+          headline: {
+            segments: headline,
+          },
+          otherWritings:
+            useKanjiHeadline && writings[0].applicable.length === 1 ? writings.slice(1) : writings,
+          otherReadings: readingGroups.length <= 1 ? readings.slice(1) : readings,
+        };
+      } else {
+        return {
+          multipleReadingGroups: false,
+          headline: {
+            segments: segmentPinyin(word.simplified, formatPinyin(word.pinyin)),
+          },
+          applicable: [],
+          otherWritings: [],
+          otherReadings: [],
+        };
+      }
+    })(),
+  );
+
+  const hasAnyGloss = $derived(headline.segments.some((el) => el.gloss !== undefined));
 </script>
 
-<div class="word">
-  <div class="headline">
-    {#if word.type === ItemType.jmdict}
-      {@const segments = segmentFurigana(
-        word.kanji?.[0]?.text ?? word.kana[0].text,
-        word.kana[0].text,
-      )}
-      {@const hasAnyReading = segments.some((el) => el.kana.length > 0)}
-      <ruby class="wordTitleBase fontJapanese">
-        {#each segments as el}
-          {el.kanji}{#if hasAnyReading}
-            <rt
-              class={{
-                hiddenReading: false,
-                reading: true,
-              }}
-            >
-              {el.kana}
-            </rt>
-          {/if}
-        {/each}
-      </ruby>
-    {:else}
-      {@const segments = segmentPinyin(word.simplified, formatPinyin(word.pinyin))}
-      <ruby class="wordTitleBase">
-        {#each segments as segment}
-          <span class="fontSimplifiedChinese">{segment.hanzi}</span><rt class="pinyin"
-            >{segment.pinyin}</rt
-          >
-        {/each}
-      </ruby>
-    {/if}
+{#snippet ordinal(i: number, first: boolean = true)}
+  <sup class="readingGroupNumber"
+    >{#if !first}|{/if}{i + 1}</sup
+  >
+{/snippet}
+
+{#snippet ordinals(is: number[])}
+  {#each is as i, j}
+    {@render ordinal(i, j === 0)}
+  {/each}
+{/snippet}
+
+<div class={{ word: true, multipleReadingGroups }}>
+  <div>
+    <ruby class={{ wordTitleBase: true, fontJapanese: word.type === ItemType.jmdict }}>
+      {#each headline.segments as segment}
+        <span class={{ fontSimplifiedChinese: word.type === ItemType.cedict }}>{segment.base}</span
+        >{#if hasAnyGloss}
+          <rt class={{ gloss: true, pinyin: word.type === ItemType.cedict }}>{segment.gloss}</rt>
+        {/if}
+      {/each}
+    </ruby>
     <a
       href={p("/item/:type/:index", { type: word.type, index: word.index.toString() })}
       class="rank"
       title="This word's frequency rank in the dictionary">#{rank}</a
     >
   </div>
+
+  {#if otherWritings.length > 0 || otherReadings.length > 0}
+    <div class="otherForms">
+      {#if otherWritings.length > 0}
+        <span class="otherFormsLabel">also</span>
+        {#each otherWritings as w, i}<span class="fontJapanese">{i !== 0 ? "、" : ""}{w.text}</span
+          >{@render ordinals(w.applicable)}{/each}
+      {/if}
+      {#if otherWritings.length > 0 && otherReadings.length > 0}
+        <br />
+      {/if}
+      {#if otherReadings.length > 0}
+        <span class="otherFormsLabel"
+          >{#if !multipleReadingGroups}also{/if} read</span
+        >
+        {#each otherReadings as r, i}<span class="fontJapanese">{i !== 0 ? "、" : ""}</span
+          >{@render ordinal(r.group)}<span class="fontJapanese">{r.text}</span>{/each}
+      {/if}
+    </div>
+  {/if}
+
   <div class="sensesWrapper">
     {#if word.type === ItemType.jmdict}
       <ol class="wordSenses">
@@ -79,9 +159,6 @@
     align-items: stretch;
   }
 
-  .headline {
-  }
-
   .rank {
     color: color-mix(in srgb, var(--t-on-background) 50%, transparent);
   }
@@ -94,26 +171,17 @@
     font-family: "Noto Serif JP";
   }
 
-  .fontTraditionalChinese {
-    font-family: "Noto Serif TC";
-  }
-
   .fontSimplifiedChinese {
     font-family: "Noto Serif SC";
   }
 
-  .reading,
-  .pinyin {
+  .gloss {
     user-select: none;
     pointer-events: none;
   }
 
   .pinyin {
     margin: 0 0.2em;
-  }
-
-  .hiddenReading {
-    visibility: hidden;
   }
 
   .sensesWrapper {
@@ -138,5 +206,24 @@
   .wordSense::marker {
     font-size: 0.75em;
     color: gray;
+  }
+
+  .otherForms {
+    margin: 0 0 0.25em 0.1em;
+    font-size: 1em;
+    color: color-mix(in srgb, var(--t-on-background) 75%, transparent);
+  }
+
+  .readingGroupNumber {
+    display: none;
+  }
+
+  .multipleReadingGroups .readingGroupNumber {
+    display: unset;
+    color: color-mix(in srgb, var(--t-on-background) 50%, transparent);
+  }
+
+  .otherFormsLabel {
+    color: color-mix(in srgb, var(--t-on-background) 50%, transparent);
   }
 </style>

@@ -47,3 +47,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           directory: dist
+          projectName: tanoko

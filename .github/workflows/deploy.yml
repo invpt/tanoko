@@ -42,9 +42,9 @@ jobs:
           ./generator
       - name: Build
         run: pnpm run build
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          directory: dist
-          projectName: tanoko
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=tanoko

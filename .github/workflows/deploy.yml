@@ -17,12 +17,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "22"
           cache: "pnpm"
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
       - name: Get week number
         id: date
         run: echo "week=$(date +'%Y-W%U')" >> $GITHUB_OUTPUT

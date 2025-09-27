@@ -7,7 +7,7 @@ export class BlobFileReader implements FileReader {
     return await this.blob.slice(start, end).arrayBuffer();
   }
 
-  stream(start?: number, end?: number): ReadableStream {
+  async stream(start?: number, end?: number): Promise<ReadableStream> {
     return this.blob.slice(start, end).stream();
   }
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/invpt/tanoko/generator/fileset"
 )
 
 func main() {
@@ -40,18 +42,24 @@ func main() {
 		panic(err)
 	}
 
-	jm, jmne, kj, err := fetchJMdict()
+	jm, jmne, kanjidic, err := fetchJMdict()
 	if err != nil {
 		panic(err)
 	}
 
+	_ = kanjidic
+
 	fmt.Println("Generating files...")
 
-	if err := generateJapanese(jm, jmne, kj, outputDir); err != nil {
+	if err := fileset.Export(outputDir, "ce", ce, 0); err != nil {
 		panic(err)
 	}
 
-	if err := generateChinese(ce, outputDir); err != nil {
+	if err := fileset.Export(outputDir, "jm", jm.Words, 0); err != nil {
+		panic(err)
+	}
+
+	if err := fileset.Export(outputDir, "jmne", jmne.Words, 200_000); err != nil {
 		panic(err)
 	}
 

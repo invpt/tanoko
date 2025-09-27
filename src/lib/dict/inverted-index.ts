@@ -28,7 +28,7 @@ export class InvertedIndex {
   }
 
   static async load(fileReader: FileReader): Promise<InvertedIndex> {
-    const decoder = new StreamDecoder(fileReader.stream());
+    const decoder = new StreamDecoder(await fileReader.stream());
     const chunks: Uint8Array[] = [];
 
     for await (const chunk of decoder) {

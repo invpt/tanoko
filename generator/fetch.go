@@ -11,8 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/invpt/tanoko/generator/cedict"
-	"github.com/invpt/tanoko/generator/jmdict"
+	"github.com/invpt/tanoko/generator/src"
 )
 
 var jmdictSimplifiedReleasesUrl = "https://api.github.com/repos/scriptin/jmdict-simplified/releases"
@@ -29,7 +28,7 @@ type githubReleaseAsset struct {
 
 var client = &http.Client{Timeout: 10 * time.Second}
 
-func fetchJMdict() (jm jmdict.JMdict, jmne jmdict.JMnedict, kj jmdict.Kanjidic2, err error) {
+func fetchJMdict() (jm src.JMdict, jmne src.JMnedict, kj src.Kanjidic2, err error) {
 	if isCached("jmdict.json") && isCached("jmnedict.json") && isCached("kanjidic2.json") {
 		fmt.Println("Using cached JMdict data")
 
@@ -178,7 +177,7 @@ func fetchJsonFromTarGzAndCache(url, cacheFilename string, target any) error {
 	return errors.New("no JSON file found in tar.gz archive")
 }
 
-func fetchCEDICT() (ce cedict.CEDICT, err error) {
+func fetchCEDICT() (ce src.CEDICT, err error) {
 	if isCached("cedict.txt.gz") {
 		fmt.Println("Using cached CEDICT data")
 
@@ -194,7 +193,7 @@ func fetchCEDICT() (ce cedict.CEDICT, err error) {
 		}
 		defer gzr.Close()
 
-		ce, err = cedict.Parse(gzr)
+		ce, err = src.ParseCEDICT(gzr)
 		return ce, err
 	}
 
@@ -214,7 +213,7 @@ func fetchCEDICT() (ce cedict.CEDICT, err error) {
 	}
 	defer gzr.Close()
 
-	ce, err = cedict.Parse(gzr)
+	ce, err = src.ParseCEDICT(gzr)
 	if err != nil {
 		return
 	}

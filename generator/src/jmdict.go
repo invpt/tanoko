@@ -1,4 +1,4 @@
-package jmdict
+package src
 
 //////////////////////////////////////////////
 // Shared custom types for all dictionaries //

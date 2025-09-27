@@ -2,14 +2,14 @@ import { type JMdictWord, type Kanjidic2Character } from "@scriptin/jmdict-simpl
 import { StorageFactory } from "./storage/factory";
 import { FileStorage } from "./storage/interfaces";
 
-import cedictEnglishUrl from "../../assets/gen/cedict-english.bin?url";
-import cedictNativeUrl from "../../assets/gen/cedict-native.bin?url";
-import jmdictEnglishUrl from "../../assets/gen/jmdict-english.bin?url";
-import jmdictNativeUrl from "../../assets/gen/jmdict-native.bin?url";
-import jmdictUrl from "../../assets/gen/jmdict.bin?url";
-import cedictUrl from "../../assets/gen/cedict.bin?url";
-import jmdictOffsetsUrl from "../../assets/gen/jmdict-offsets.bin?url";
-import cedictOffsetsUrl from "../../assets/gen/cedict-offsets.bin?url";
+import ceEnglish from "../../assets/gen/ce-english.bin?url";
+import ceNative from "../../assets/gen/ce-native.bin?url";
+import jmEnglish from "../../assets/gen/jm-english.bin?url";
+import jmNative from "../../assets/gen/jm-native.bin?url";
+import jmEntries from "../../assets/gen/jm-entries.bin?url";
+import ceEntries from "../../assets/gen/ce-entries.bin?url";
+import jmOffsets from "../../assets/gen/jm-offsets.bin?url";
+import ceOffsets from "../../assets/gen/ce-offsets.bin?url";
 import { Decoder } from "./decode";
 import { WordLoader } from "./word-loader";
 import { RadixTree } from "./radix-tree";
@@ -17,6 +17,7 @@ import { InvertedIndex } from "./inverted-index";
 import { ProgressTracker } from "./storage/progress-tracker";
 import { EnglishQuery, NativeQuery } from "../query/interfaces";
 import { ItemType } from "../item";
+import { NetworkFileReader } from "./storage/network-file-reader";
 
 export type { JMdictWord, Kanjidic2Character };
 
@@ -94,18 +95,20 @@ class Dictionary {
 
     if (language === Language.Chinese) {
       return (this.cedictLoader ??= await WordLoader.load(
-        ...(await Promise.all([
-          this.storage.ensureFileExists("cedict.bin", cedictUrl, progressTracker),
-          this.storage.ensureFileExists("cedict-offsets.bin", cedictOffsetsUrl, progressTracker),
-        ])),
+        new NetworkFileReader(
+          ceEntries,
+          this.storage.ensureFileExists("cedict.bin", ceEntries, progressTracker),
+        ),
+        await this.storage.ensureFileExists("cedict-offsets.bin", ceOffsets, progressTracker),
         parseCedictEntry,
       ));
     } else {
       return (this.jmdictLoader ??= await WordLoader.load(
-        ...(await Promise.all([
-          this.storage.ensureFileExists("jmdict.bin", jmdictUrl, progressTracker),
-          this.storage.ensureFileExists("jmdict-offsets.bin", jmdictOffsetsUrl, progressTracker),
-        ])),
+        new NetworkFileReader(
+          jmEntries,
+          this.storage.ensureFileExists("jmdict.bin", jmEntries, progressTracker),
+        ),
+        await this.storage.ensureFileExists("jmdict-offsets.bin", jmOffsets, progressTracker),
         parseJmdictEntry,
       ));
     }
@@ -121,11 +124,11 @@ class Dictionary {
 
     if (language === Language.Chinese) {
       return (this.cedictNativeQuery ??= await RadixTree.load(
-        await this.storage.ensureFileExists("cedict-native.bin", cedictNativeUrl, progressTracker),
+        await this.storage.ensureFileExists("cedict-native.bin", ceNative, progressTracker),
       ));
     } else {
       return (this.jmdictNativeQuery ??= await RadixTree.load(
-        await this.storage.ensureFileExists("jmdict-native.bin", jmdictNativeUrl, progressTracker),
+        await this.storage.ensureFileExists("jmdict-native.bin", jmNative, progressTracker),
       ));
     }
   }
@@ -140,19 +143,11 @@ class Dictionary {
 
     if (language === Language.Chinese) {
       return (this.cedictEnglishQuery ??= await InvertedIndex.load(
-        await this.storage.ensureFileExists(
-          "cedict-english.bin",
-          cedictEnglishUrl,
-          progressTracker,
-        ),
+        await this.storage.ensureFileExists("cedict-english.bin", ceEnglish, progressTracker),
       ));
     } else {
       return (this.jmdictEnglishQuery ??= await InvertedIndex.load(
-        await this.storage.ensureFileExists(
-          "jmdict-english.bin",
-          jmdictEnglishUrl,
-          progressTracker,
-        ),
+        await this.storage.ensureFileExists("jmdict-english.bin", jmEnglish, progressTracker),
       ));
     }
   }

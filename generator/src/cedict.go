@@ -1,4 +1,4 @@
-package cedict
+package src
 
 import (
 	"bufio"
@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-func Parse(r io.Reader) (ce CEDICT, err error) {
+func ParseCEDICT(r io.Reader) (ce CEDICT, err error) {
 	s := bufio.NewScanner(r)
 
 	for s.Scan() {
 		text := s.Text()
-		entry := Entry{}
+		entry := CEDICTEntry{}
 
 		if strings.HasPrefix(text, "#") {
 			continue
@@ -39,7 +39,7 @@ func Parse(r io.Reader) (ce CEDICT, err error) {
 		entry.Pinyin = text[:end]
 		text = text[end+3:]
 
-		entry.Senses = []Gloss{}
+		entry.Senses = []CEDICTGloss{}
 		for text != "" {
 			end = strings.Index(text, "/")
 			if end < 0 {
@@ -62,13 +62,13 @@ func Parse(r io.Reader) (ce CEDICT, err error) {
 	return
 }
 
-type CEDICT []Entry
+type CEDICT []CEDICTEntry
 
-type Entry struct {
+type CEDICTEntry struct {
 	Traditional string
 	Simplified  string
 	Pinyin      string
-	Senses      []Gloss
+	Senses      []CEDICTGloss
 }
 
-type Gloss = []string
+type CEDICTGloss = []string

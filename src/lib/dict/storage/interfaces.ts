@@ -2,7 +2,7 @@ import { ProgressTracker } from "./progress-tracker";
 
 export interface FileReader {
   read(start?: number, end?: number): Promise<ArrayBuffer>;
-  stream(): ReadableStream;
+  stream(): Promise<ReadableStream>;
 }
 
 export interface FileStorage {

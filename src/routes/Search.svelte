@@ -169,7 +169,6 @@
 
 <style>
   main {
-    margin: 20px 24px;
     display: flex;
     flex-direction: column;
     gap: 20px;

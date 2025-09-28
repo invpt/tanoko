@@ -20,4 +20,8 @@
     --t-secondary: rgb(32, 32, 32);
     --t-on-secondary: white;
   }
+
+  a {
+    color: lightsteelblue;
+  }
 }

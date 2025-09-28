@@ -33,6 +33,28 @@ jobs:
           key: generator-cache-${{ steps.date.outputs.week }}
           restore-keys: |
             generator-cache-
+      - name: Download rclone
+        run: |
+          curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip rclone-current-linux-amd64.zip
+          mv rclone-*-linux-amd64/rclone .
+          chmod +x rclone
+      - name: Configure rclone
+        env:
+          ACCESS_KEY_ID: ${{ secrets.access_key_id }}
+          SECRET_ACCESS_KEY: ${{ secrets.secret_access_key }}
+          ENDPOINT: ${{ secrets.endpoint }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat >> ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = $ACCESS_KEY_ID
+          secret_access_key = $SECRET_ACCESS_KEY
+          region = auto
+          endpoint = $ENDPOINT
+          EOF
       - name: Install dependencies
         run: pnpm install
       - name: Generate assets
@@ -41,8 +63,16 @@ jobs:
           go build -o generator .
           ./generator
       - name: Build
+        env:
+          VITE_DATAFILE_BASE_URL: https://data.tanoko.org/
         run: pnpm run build
-      - name: Deploy
+      - name: Separate bin files
+        run: |
+          mkdir datafiles
+          mv dist/**/*.bin datafiles/
+      - name: Deploy datafiles
+        run: ./rclone sync datafiles/ r2:tanoko/
+      - name: Deploy app
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -4,15 +4,27 @@
   import Header from "./lib/components/Header.svelte";
 </script>
 
-<div>
+<div class="top">
   <Header />
-  <Router />
+  <div class="content">
+    <Router />
+  </div>
 </div>
 
 <style>
-  div {
+  .top {
     display: grid;
     max-width: 1200px;
     margin: 0 auto;
+  }
+
+  .content {
+    margin: 20px 40px;
+  }
+
+  @media (max-width: 700px) {
+    .content {
+      margin: 20px 24px;
+    }
   }
 </style>

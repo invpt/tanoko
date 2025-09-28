@@ -51,7 +51,7 @@
 
         const headline = useKanjiHeadline
           ? segmentFurigana(writings[0].text, readings[0].text)
-          : [{ base: readings[0].text, gloss: "" }];
+          : [{ base: readings[0].text }];
 
         return {
           multipleReadingGroups: readingGroups.length > 1,
@@ -92,7 +92,7 @@
 {/snippet}
 
 <div class={{ word: true, multipleReadingGroups }}>
-  <div>
+  <span>
     <ruby class={{ wordTitleBase: true, fontJapanese: word.type === ItemType.jmdict }}>
       {#each headline.segments as segment}
         <span class={{ fontSimplifiedChinese: word.type === ItemType.cedict }}>{segment.base}</span
@@ -106,7 +106,7 @@
       class="rank"
       title="This word's frequency rank in the dictionary">#{rank}</a
     >
-  </div>
+  </span>
 
   {#if otherWritings.length > 0 || otherReadings.length > 0}
     <div class="otherForms">
@@ -160,6 +160,7 @@
   }
 
   .rank {
+    float: right;
     color: color-mix(in srgb, var(--t-on-background) 50%, transparent);
   }
 

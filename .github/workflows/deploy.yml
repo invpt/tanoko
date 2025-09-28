@@ -64,7 +64,7 @@ jobs:
           ./generator
       - name: Build
         env:
-          VITE_DATAFILE_BASE_URL: https://data.tanoko.org/
+          DATA_BASE_URL: https://data.tanoko.org/
         run: pnpm run build
       - name: Separate bin files
         run: |

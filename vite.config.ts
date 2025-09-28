@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
@@ -6,10 +8,10 @@ export default defineConfig({
   plugins: [svelte()],
   experimental: {
     renderBuiltUrl(filename) {
-      if (import.meta.env.VITE_DATAFILE_BASE_URL != null) {
+      if (process.env.DATA_BASE_URL != null) {
         const match = filename.match(/^assets\/(.*\.bin)$/);
         if (match) {
-          return import.meta.env.VITE_DATAFILE_BASE_URL + match[1];
+          return process.env.DATA_BASE_URL + match[1];
         }
       }
     },

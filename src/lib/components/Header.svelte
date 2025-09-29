@@ -62,12 +62,15 @@
       bind:value={query}
       onkeyup={handleKeyUp}
       placeholder="Search"
-      lang="ja"
+      lang={language === Language.Chinese
+        ? "zh"
+        : language === Language.Japanese
+          ? "jp"
+          : undefined}
       autocapitalize="none"
       autocomplete="off"
       autocorrect="off"
       spellcheck="false"
-      autofocus
     />
     <button
       onclick={() => search(Language.Chinese)}
@@ -193,7 +196,13 @@
     background-color: color-mix(in hsl, var(--bg), black 10%);
   }
 
+  .search-wrapper .chinese {
+    font-family: "Noto Sans SC";
+  }
+
   .search-wrapper .japanese {
+    font-family: "Noto Sans JP";
+
     border-top-right-radius: 16px;
     border-bottom-right-radius: 16px;
   }

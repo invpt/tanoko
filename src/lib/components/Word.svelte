@@ -31,6 +31,8 @@
           }
         }
 
+        readings.sort((a, b) => a.group - b.group);
+
         const writings: { text: string; common: boolean; applicable: number[] }[] = [];
         for (const kanji of word.kanji) {
           writings.push({
@@ -53,20 +55,23 @@
           ? segmentFurigana(writings[0].text, readings[0].text)
           : [{ base: readings[0].text }];
 
+        const multipleReadingGroups = readingGroups.length > 1;
+
         return {
-          multipleReadingGroups: readingGroups.length > 1,
+          multipleReadingGroups,
           headline: {
             segments: headline,
+            applicable: useKanjiHeadline && multipleReadingGroups ? writings[0].applicable : [],
           },
-          otherWritings:
-            useKanjiHeadline && writings[0].applicable.length === 1 ? writings.slice(1) : writings,
-          otherReadings: readingGroups.length <= 1 ? readings.slice(1) : readings,
+          otherWritings: useKanjiHeadline ? writings.slice(1) : writings,
+          otherReadings: multipleReadingGroups ? readings : readings.slice(1),
         };
       } else {
         return {
           multipleReadingGroups: false,
           headline: {
             segments: segmentPinyin(word.simplified, formatPinyin(word.pinyin)),
+            applicable: [],
           },
           applicable: [],
           otherWritings: [],
@@ -101,6 +106,7 @@
         {/if}
       {/each}
     </ruby>
+    {@render ordinals(headline.applicable)}
     <a
       href={p("/item/:type/:index", { type: word.type, index: word.index.toString() })}
       class="rank"

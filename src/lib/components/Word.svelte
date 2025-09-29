@@ -182,6 +182,7 @@
   }
 
   .pinyin {
+    font-size: 60%;
     margin: 0 0.2em;
   }
 

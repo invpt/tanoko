@@ -100,7 +100,7 @@
   <span>
     <ruby class={["wordTitleBase", { fontJapanese: word.type === ItemType.jmdict }]}>
       {#each headline.segments as segment}
-        <span class={{ fontSimplifiedChinese: word.type === ItemType.cedict }}>{segment.base}</span
+        <rb class={{ fontSimplifiedChinese: word.type === ItemType.cedict }}>{segment.base}</rb
         >{#if hasAnyGloss}
           <rt class={{ gloss: true, pinyin: word.type === ItemType.cedict }}>{segment.gloss}</rt>
         {/if}
@@ -171,7 +171,7 @@
   }
 
   .wordTitleBase {
-    font-size: 1.75em;
+    font-size: 34px;
   }
 
   .fontJapanese {
@@ -188,11 +188,8 @@
   }
 
   .pinyin {
-    /*Michroma took a close second as the most readable font for pinyin that I could find*/
     font-family: "Ysabeau";
-    font-size: 65%;
-
-    margin: 0 0.2em;
+    margin: 0 2px;
   }
 
   .sensesWrapper {

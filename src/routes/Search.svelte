@@ -6,6 +6,7 @@
   import { Languages } from "lucide-svelte";
   import { type Query } from "../lib/query/interfaces";
   import { ItemType } from "../lib/item";
+  import { searchState } from "../lib/reactives/search.svelte";
 
   const query = $derived(searchParams.get("q"));
   const language = $derived.by(() => {
@@ -21,9 +22,13 @@
 
   // TODO: useAlternative should be in the query params
   let useAlternative = $state(false);
+  let tryOther = $state(false);
 
   let direct = $state.raw<Query | null>();
   let alternative = $state.raw<Query | null>();
+
+  let results = $state<DictionaryEntry[]>([]);
+  let generator = $state.raw<AsyncGenerator<DictionaryEntry>>();
 
   $effect(() => {
     if (language != null && query != null) {
@@ -34,97 +39,66 @@
     }
   });
 
-  let results = $state.raw<DictionaryEntry[]>([]);
-  let generator = $state.raw<AsyncGenerator<DictionaryEntry> | null>(null);
-  let isLoading = $state(false);
-  let hasMoreResults = $state(true);
-  let showLoadingIndicator = $state(false);
-  let loadingTimeout: number | undefined;
-
   $effect(() => {
-    if (direct != null && language != null) {
-      generator =
-        useAlternative && alternative != null
-          ? dict.search(alternative, language)
-          : dict.search(direct, language);
-
-      hasMoreResults = true;
-      clearLoadingState();
-
-      // Trigger initial load manually (not in effect)
-      queueMicrotask(() => loadResults(true));
-    } else {
+    const query = direct ?? alternative;
+    if (query == null || language == null) {
       results = [];
-      generator = null;
-      hasMoreResults = false;
-      clearLoadingState();
+      generator = undefined;
+      return;
     }
+
+    generator = dict.search(query, language);
+    queueMicrotask(() => loadMore(true));
   });
 
-  const loadResults = async (isInitialLoad = false) => {
-    if (!generator || isLoading) return;
+  $effect(() => {
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  });
 
-    isLoading = true;
+  const loadMore = async (clear: boolean) => {
+    if (generator == null || searchState.loading) {
+      return;
+    }
 
-    // Set up delayed loading indicator
-    if (loadingTimeout) clearTimeout(loadingTimeout);
-    loadingTimeout = setTimeout(() => {
-      if (isLoading) showLoadingIndicator = true;
-    }, 500);
+    searchState.loading = true;
 
     try {
-      const batchSize = 10;
-      const newResults: DictionaryEntry[] = [];
-
-      for (let i = 0; i < batchSize; i++) {
-        const next = await generator.next();
-        if (next.done) {
-          hasMoreResults = false;
+      for (let i = 0; i < 10; i++) {
+        const result = await generator.next();
+        if (result.done) {
+          generator = undefined;
           break;
+        } else {
+          if (clear) {
+            results = [];
+            clear = false;
+          }
+
+          results.push(result.value);
         }
-        newResults.push(next.value);
       }
 
-      if (isInitialLoad) {
-        results = newResults;
-      } else {
-        results = [...results, ...newResults];
+      if (clear) {
+        results = [];
       }
     } catch (error) {
-      console.error("Error loading results:", error);
-      hasMoreResults = false;
-    } finally {
-      clearLoadingState();
+      // TODO: error popup or something
+      console.error("Failed to load results:", error);
     }
+
+    searchState.loading = false;
   };
 
-  const clearLoadingState = () => {
-    isLoading = false;
-    showLoadingIndicator = false;
-    if (loadingTimeout) {
-      clearTimeout(loadingTimeout);
-      loadingTimeout = undefined;
-    }
-  };
-
-  // Infinite scroll handler
   const handleScroll = () => {
     if (
-      hasMoreResults &&
-      !isLoading &&
+      generator != null &&
+      !searchState.loading &&
       window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000
     ) {
-      loadResults(false);
+      loadMore(false);
     }
   };
-
-  // Set up scroll listener
-  $effect(() => {
-    if (typeof window !== "undefined") {
-      window.addEventListener("scroll", handleScroll);
-      return () => window.removeEventListener("scroll", handleScroll);
-    }
-  });
 </script>
 
 <main>
@@ -145,26 +119,20 @@
     </button>
   {/if}
 
-  {#if results.length > 0}
-    {#each results as result (result.type === ItemType.jmdict ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
-      <Word word={result} />
-      <div class="divider"></div>
-    {/each}
+  {#each results as result (result.type === ItemType.jmdict ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
+    <Word word={result} />
+    <div class="divider"></div>
+  {/each}
 
-    {#if showLoadingIndicator && hasMoreResults}
-      <div class="loading">Loading more...</div>
+  <div class="message">
+    {#if searchState.loading}
+      Loading...
+    {:else if results.length === 0}
+      No results
+    {:else if generator == null}
+      No more results
     {/if}
-
-    {#if !hasMoreResults}
-      <div class="end-message">No more results</div>
-    {/if}
-  {:else if direct != null}
-    {#if showLoadingIndicator}
-      <div class="loading">Loading...</div>
-    {:else if !isLoading}
-      <div class="no-results">No results found</div>
-    {/if}
-  {/if}
+  </div>
 </main>
 
 <style>
@@ -201,9 +169,7 @@
     min-width: 1em;
   }
 
-  .loading,
-  .end-message,
-  .no-results {
+  .message {
     text-align: center;
     color: color-mix(in srgb, var(--t-on-background) 25%, transparent);
   }

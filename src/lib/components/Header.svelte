@@ -3,6 +3,7 @@
   import { isActive, navigate } from "../../router";
   import { Language } from "../dict";
   import { searchParams } from "sv-router";
+  import { searchState } from "../reactives/search.svelte";
 
   let query = $derived(searchParams.get("q") ?? "");
   let language = $derived.by(() => {
@@ -16,11 +17,22 @@
     }
   });
 
-  // update the search query as the user types, but only if they're on the search page
+  let isDebouncing = $state(false);
+  let debounceTimer: number | null = null;
+
   $effect(() => {
     query;
     if (isActive("/search")) {
-      search();
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
+      isDebouncing = true;
+      debounceTimer = setTimeout(() => {
+        isDebouncing = false;
+        debounceTimer = null;
+        search();
+      }, 200);
     }
   });
 
@@ -51,7 +63,7 @@
   };
 </script>
 
-<nav>
+<nav class={{ loading: searchState.loading || isDebouncing }}>
   <a class="title" href="/">
     <span>ただ</span>
     <span class="titleDeemph">の</span>
@@ -96,7 +108,6 @@
   nav {
     display: grid;
     grid-template-columns: auto 1fr auto;
-    background-color: var(--t-secondary);
     color: var(--t-on-secondary);
     align-items: stretch;
     padding: 8px 16px;
@@ -104,6 +115,16 @@
     margin-bottom: 0;
     border-radius: 16px;
     gap: 16px 16px;
+
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in hsl, var(--t-secondary), white 10%) 0%,
+      var(--t-secondary) 50%,
+      var(--t-secondary) 100%
+    );
+    background-size: 400% 100%;
+    background-position: 100% 0;
+    transition: background-position 2s;
   }
 
   @media (max-width: 700px) {
@@ -117,6 +138,19 @@
     .search-wrapper {
       grid-row: 2;
       grid-column: 1 / 3;
+    }
+  }
+
+  nav.loading {
+    animation: loading-bar 3s linear infinite;
+  }
+
+  @keyframes loading-bar {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -300% 0;
     }
   }
 

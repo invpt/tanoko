@@ -22,7 +22,6 @@
 
   // TODO: useAlternative should be in the query params
   let useAlternative = $state(false);
-  let tryOther = $state(false);
 
   let direct = $state.raw<Query | null>();
   let alternative = $state.raw<Query | null>();
@@ -40,7 +39,7 @@
   });
 
   $effect(() => {
-    const query = direct ?? alternative;
+    const query = useAlternative ? (alternative ?? direct) : direct;
     if (query == null || language == null) {
       results = [];
       generator = undefined;

@@ -8,7 +8,7 @@ export function formatCedict(text: string, useSimplified: boolean) {
       (pinyin, space: string) => (space === "" ? " " : "") + formatPinyin(pinyin),
     )
     .replaceAll(
-      /([\p{Ll}\p{Lm}\p{Lo}\p{Lt}\p{Lu}]+)\|([\p{Ll}\p{Lm}\p{Lo}\p{Lt}\p{Lu}]+)/gu,
+      /([\p{Ll}\p{Lm}\p{Lo}\p{Lt}\p{Lu}\p{Nd}\p{Nl}\p{No}]+)\|([\p{Ll}\p{Lm}\p{Lo}\p{Lt}\p{Lu}\p{Nd}\p{Nl}\p{No}]+)/gu,
       (_, traditional: string, simplified: string) => (useSimplified ? simplified : traditional),
     );
 }

@@ -96,13 +96,16 @@
   {/each}
 {/snippet}
 
-<div class={{ word: true, multipleReadingGroups }}>
+<div class={["word", word.lang, { multipleReadingGroups }]}>
   <span>
-    <ruby class={["wordTitleBase", { fontJapanese: word.type === ItemType.jmdict }]}>
+    <ruby>
       {#each headline.segments as segment}
-        <rb class={{ fontSimplifiedChinese: word.type === ItemType.cedict }}>{segment.base}</rb
-        >{#if hasAnyGloss}
-          <rt class={{ gloss: true, pinyin: word.type === ItemType.cedict }}>{segment.gloss}</rt>
+        <rb>{segment.base}</rb>{#if hasAnyGloss}
+          <rt
+            >{#if word.type === ItemType.cedict}<div>
+                {segment.gloss}
+              </div>{:else}{segment.gloss}{/if}</rt
+          >
         {/if}
       {/each}
     </ruby>
@@ -118,7 +121,7 @@
     <div class="otherForms">
       {#if otherWritings.length > 0}
         <span class="otherFormsLabel">also</span>
-        {#each otherWritings as w, i}<span class="fontJapanese">{i !== 0 ? "、" : ""}{w.text}</span
+        {#each otherWritings as w, i}<span class="otherForm">{i !== 0 ? "、" : ""}{w.text}</span
           >{@render ordinals(w.applicable)}{/each}
       {/if}
       {#if otherWritings.length > 0 && otherReadings.length > 0}
@@ -128,8 +131,8 @@
         <span class="otherFormsLabel"
           >{#if !multipleReadingGroups}also{/if} read</span
         >
-        {#each otherReadings as r, i}<span class="fontJapanese">{i !== 0 ? "、" : ""}</span
-          >{@render ordinal(r.group)}<span class="fontJapanese">{r.text}</span>{/each}
+        {#each otherReadings as r, i}<span class="otherForm">{i !== 0 ? "、" : ""}</span
+          >{@render ordinal(r.group)}<span class="otherForm">{r.text}</span>{/each}
       {/if}
     </div>
   {/if}
@@ -170,26 +173,26 @@
     color: color-mix(in srgb, var(--t-on-background) 50%, transparent);
   }
 
-  .wordTitleBase {
+  ruby {
     font-size: 34px;
   }
 
-  .fontJapanese {
-    font-family: "Noto Serif JP";
-  }
-
-  .fontSimplifiedChinese {
-    font-family: "Noto Serif SC";
-  }
-
-  .gloss {
+  rt {
     user-select: none;
     pointer-events: none;
   }
 
-  .pinyin {
+  .zh rb {
+    font-family: "Noto Serif SC";
+  }
+
+  .zh rt {
     font-family: "Ysabeau";
     margin: 0 2px;
+  }
+
+  .jp ruby {
+    font-family: "Noto Serif JP";
   }
 
   .sensesWrapper {
@@ -220,6 +223,10 @@
     margin: 0 0 0.25em 0.1em;
     font-size: 1em;
     color: color-mix(in srgb, var(--t-on-background) 75%, transparent);
+  }
+
+  .jp .otherForm {
+    font-family: "Noto Serif JP";
   }
 
   .readingGroupNumber {

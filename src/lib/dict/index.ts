@@ -22,8 +22,8 @@ import { NetworkFileReader } from "./storage/network-file-reader";
 export type { JMdictWord, Kanjidic2Character };
 
 export type DictionaryEntry =
-  | (CedictWord & { type: ItemType.cedict; index: number })
-  | (JMdictWord & { type: ItemType.jmdict; index: number });
+  | (CedictWord & { lang: Language; type: ItemType.cedict; index: number })
+  | (JMdictWord & { lang: Language; type: ItemType.jmdict; index: number });
 
 export type CedictWord = {
   traditional: string;
@@ -221,7 +221,15 @@ function parseJmdictEntry(index: number, decoder: Decoder): DictionaryEntry | un
       }),
     );
 
-    return { index, id, kanji, kana, sense, type: ItemType.jmdict };
+    return {
+      index,
+      id,
+      kanji,
+      kana,
+      sense,
+      lang: Language.Japanese,
+      type: ItemType.jmdict,
+    };
   } catch {
     return undefined;
   }
@@ -236,7 +244,15 @@ function parseCedictEntry(index: number, decoder: Decoder): DictionaryEntry | un
       decoder.iterArray(() => Array.from(decoder.iterArray(() => decoder.string()))),
     );
 
-    return { index, traditional, simplified, pinyin, senses, type: ItemType.cedict };
+    return {
+      index,
+      traditional,
+      simplified,
+      pinyin,
+      senses,
+      lang: Language.Chinese,
+      type: ItemType.cedict,
+    };
   } catch {
     return undefined;
   }

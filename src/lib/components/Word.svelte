@@ -1,6 +1,7 @@
 <script lang="ts">
   import { p } from "../../router";
   import { type DictionaryEntry } from "../dict";
+  import { formatCedict } from "../format/cedict";
   import { segmentFurigana } from "../format/furigana";
   import { formatPinyin, segmentPinyin } from "../format/pinyin";
   import { ItemType } from "../item";
@@ -154,7 +155,7 @@
     {:else}
       <ol class="wordSenses">
         {#each word.senses as senseGroup}
-          <li class="wordSense">{senseGroup.join("; ")}</li>
+          <li class="wordSense">{formatCedict(senseGroup.join("; "), true)}</li>
         {/each}
       </ol>
     {/if}

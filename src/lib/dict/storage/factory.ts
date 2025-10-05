@@ -3,38 +3,35 @@ import { OPFSStorage } from "./opfs";
 import { IndexedDBStorage } from "./indexeddb";
 
 export class StorageFactory {
-  private static storageCache = new Map<string, FileStorage>();
+  private static instance: FileStorage | null = null;
 
-  static async createStorage(dirName: string): Promise<FileStorage> {
-    // Return cached instance if available
-    const cached = this.storageCache.get(dirName);
-    if (cached) {
-      return cached;
+  static async getStorage(): Promise<FileStorage> {
+    if (this.instance) {
+      return this.instance;
     }
 
     let storage: FileStorage;
 
     if (await this.isOPFSAvailable()) {
       try {
-        storage = new OPFSStorage(dirName);
+        storage = new OPFSStorage();
         await storage.initialize();
         console.log("Using OPFS for file storage");
       } catch (error) {
         console.warn("OPFS initialization failed, falling back to IndexedDB:", error);
-        storage = await this.createIndexedDBStorage(dirName);
+        storage = await this.createIndexedDBStorage();
       }
     } else {
       console.log("OPFS not available, using IndexedDB for file storage");
-      storage = await this.createIndexedDBStorage(dirName);
+      storage = await this.createIndexedDBStorage();
     }
 
-    // Cache the storage instance
-    this.storageCache.set(dirName, storage);
+    this.instance = storage;
     return storage;
   }
 
   static clearCache(): void {
-    this.storageCache.clear();
+    this.instance = null;
   }
 
   private static async isOPFSAvailable(): Promise<boolean> {
@@ -68,8 +65,8 @@ export class StorageFactory {
     }
   }
 
-  private static async createIndexedDBStorage(dirName: string): Promise<FileStorage> {
-    const storage = new IndexedDBStorage(dirName);
+  private static async createIndexedDBStorage(): Promise<FileStorage> {
+    const storage = new IndexedDBStorage();
     await storage.initialize();
     return storage;
   }

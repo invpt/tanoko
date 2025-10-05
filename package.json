@@ -33,6 +33,7 @@
     "lru-cache": "^11.1.0",
     "lucide-svelte": "^0.535.0",
     "sv-router": "^0.7.2",
-    "ts-fsrs": "^5.2.1"
+    "ts-fsrs": "^5.2.1",
+    "zod": "^4.1.11"
   }
 }

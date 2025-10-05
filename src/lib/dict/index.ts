@@ -52,7 +52,7 @@ class Dictionary {
 
   private async initialize(): Promise<void> {
     if (this.initialized) return;
-    this.storage = await StorageFactory.createStorage("dictionaries");
+    this.storage = await StorageFactory.getStorage();
     this.initialized = true;
   }
 

@@ -1,21 +1,23 @@
+/* styles that don't vary by dark vs light */
+:root {
+  --t-primary: #025be0;
+  --t-on-primary: white;
+}
+
+/* light theme */
 :root {
   --t-background: white;
   --t-on-background: black;
-
-  --t-primary: blue;
-  --t-on-primary: white;
 
   --t-secondary: rgb(238, 238, 238);
   --t-on-secondary: black;
 }
 
+/* dark theme */
 @media (prefers-color-scheme: dark) {
   :root {
     --t-background: #111;
     --t-on-background: white;
-
-    --t-primary: blue;
-    --t-on-primary: white;
 
     --t-secondary: rgb(32, 32, 32);
     --t-on-secondary: white;

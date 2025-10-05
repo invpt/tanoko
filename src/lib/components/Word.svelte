@@ -1,10 +1,16 @@
 <script lang="ts">
   import { p } from "../../router";
   import { type DictionaryEntry } from "../dict";
+  import { formatBopomofo } from "../format/bopomofo";
   import { formatCedict } from "../format/cedict";
   import { segmentFurigana } from "../format/furigana";
   import { formatPinyin, segmentPinyin } from "../format/pinyin";
   import { ItemType } from "../item";
+  import {
+    ChineseCharacterVariant,
+    ChinesePronunciationGuide,
+    preferences,
+  } from "../reactives/preferences.svelte";
 
   const { word }: { word: DictionaryEntry } = $props();
 
@@ -68,10 +74,21 @@
           otherReadings: multipleReadingGroups ? readings : readings.slice(1),
         };
       } else {
+        const characters =
+          preferences.chinese.characterVariant === ChineseCharacterVariant.simplified
+            ? word.simplified
+            : word.traditional;
+
         return {
           multipleReadingGroups: false,
           headline: {
-            segments: segmentPinyin(word.simplified, formatPinyin(word.pinyin)),
+            segments: segmentPinyin(characters, word.pinyin).map((segment) => ({
+              base: segment.base,
+              gloss:
+                preferences.chinese.pronunciationGuide === ChinesePronunciationGuide.pinyin
+                  ? formatPinyin(segment.gloss)
+                  : formatBopomofo(segment.gloss),
+            })),
             applicable: [],
           },
           applicable: [],
@@ -97,7 +114,15 @@
   {/each}
 {/snippet}
 
-<div class={["word", word.lang, { multipleReadingGroups }]}>
+<div
+  class={[
+    "word",
+    word.lang,
+    preferences.chinese.characterVariant,
+    preferences.chinese.pronunciationGuide,
+    { multipleReadingGroups },
+  ]}
+>
   <span>
     <ruby>
       {#each headline.segments as segment}
@@ -155,7 +180,12 @@
     {:else}
       <ol class="wordSenses">
         {#each word.senses as senseGroup}
-          <li class="wordSense">{formatCedict(senseGroup.join("; "), true)}</li>
+          <li class="wordSense">
+            {formatCedict(
+              senseGroup.join("; "),
+              preferences.chinese.characterVariant === ChineseCharacterVariant.simplified,
+            )}
+          </li>
         {/each}
       </ol>
     {/if}
@@ -183,13 +213,42 @@
     pointer-events: none;
   }
 
-  .zh rb {
+  .zh.simplified rb {
     font-family: "Noto Serif SC";
+  }
+
+  .zh.traditional rb {
+    font-family: "Noto Serif TC";
   }
 
   .zh rt {
     font-family: "Ysabeau";
     margin: 0 2px;
+  }
+
+  .zh.bopomofo ruby {
+    display: inline;
+  }
+
+  .zh.bopomofo rb {
+    display: inline-block;
+    vertical-align: baseline;
+  }
+
+  .zh.bopomofo rt {
+    display: inline-block;
+    writing-mode: vertical-rl;
+    vertical-align: middle;
+    margin-top: -0.5em; /* alignment hack :/ */
+    margin-right: 0.1em;
+  }
+
+  .zh.bopomofo.simplified rt {
+    font-family: "Noto Serif SC";
+  }
+
+  .zh.bopomofo.traditional rt {
+    font-family: "Noto Serif TC";
   }
 
   .jp ruby {

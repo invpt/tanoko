@@ -100,7 +100,7 @@
     </button>
   </span>
   <div class="buttons">
-    <a class="reviews" href="/reviews">Reviews</a>
+    <a class="reviews" href="/settings">Settings</a>
   </div>
 </nav>
 

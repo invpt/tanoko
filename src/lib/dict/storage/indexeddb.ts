@@ -7,15 +7,13 @@ import { ProgressTracker } from "./progress-tracker";
  * Used as fallback when OPFS is unavailable (e.g., Firefox private mode).
  */
 export class IndexedDBStorage implements FileStorage {
-  private static readonly CACHE_VERSION = "v1";
   private static readonly DB_NAME = "tanoko-dictionaries";
   private static readonly DB_VERSION = 1;
   private static readonly FILE_STORE = "files";
-  private static readonly METADATA_STORE = "metadata";
 
   private db: IDBDatabase | undefined;
 
-  constructor(private dirName: string) {}
+  constructor() {}
 
   async initialize(): Promise<void> {
     if (this.db) return;
@@ -39,11 +37,6 @@ export class IndexedDBStorage implements FileStorage {
         if (!db.objectStoreNames.contains(IndexedDBStorage.FILE_STORE)) {
           db.createObjectStore(IndexedDBStorage.FILE_STORE);
         }
-
-        // Create metadata store if it doesn't exist
-        if (!db.objectStoreNames.contains(IndexedDBStorage.METADATA_STORE)) {
-          db.createObjectStore(IndexedDBStorage.METADATA_STORE);
-        }
       };
     });
   }
@@ -57,35 +50,11 @@ export class IndexedDBStorage implements FileStorage {
       throw new Error("IndexedDBStorage not initialized");
     }
 
-    const fileKey = `${this.dirName}/${filename}`;
-    const metaKey = `${this.dirName}/${filename}.meta`;
+    // Check if file exists
+    const fileExists = await this.fileExists(filename);
 
-    let needsDownload = false;
-
-    try {
-      // Check if file exists and if metadata indicates it needs updating
-      const metadata = await this.getMetadata(metaKey);
-      if (metadata) {
-        const [storedVersion, storedUrl] = metadata.split("\n");
-        needsDownload = storedVersion !== IndexedDBStorage.CACHE_VERSION || storedUrl !== url;
-      } else {
-        needsDownload = true;
-      }
-
-      // Also check if the actual file exists
-      if (!needsDownload) {
-        const fileExists = await this.fileExists(fileKey);
-        if (!fileExists) {
-          needsDownload = true;
-        }
-      }
-    } catch {
-      needsDownload = true;
-    }
-
-    if (needsDownload) {
-      await this.downloadFile(fileKey, url, progressTracker);
-      await this.saveMetadata(metaKey, url);
+    if (!fileExists) {
+      await this.downloadFile(filename, url, progressTracker);
     }
 
     return this.getFileReader(filename);
@@ -96,8 +65,7 @@ export class IndexedDBStorage implements FileStorage {
       throw new Error("IndexedDBStorage not initialized");
     }
 
-    const fileKey = `${this.dirName}/${filename}`;
-    const blob = await this.getFile(fileKey);
+    const blob = await this.getFile(filename);
 
     if (!blob) {
       throw new Error(`File not found: ${filename}`);
@@ -109,46 +77,21 @@ export class IndexedDBStorage implements FileStorage {
   async clearAll(): Promise<void> {
     if (!this.db) return;
 
-    const transaction = this.db.transaction(
-      [IndexedDBStorage.FILE_STORE, IndexedDBStorage.METADATA_STORE],
-      "readwrite",
-    );
-    const fileStore = transaction.objectStore(IndexedDBStorage.FILE_STORE);
-    const metadataStore = transaction.objectStore(IndexedDBStorage.METADATA_STORE);
-
-    // Get all keys and delete those that match our directory prefix
-    const prefix = `${this.dirName}/`;
+    const transaction = this.db.transaction([IndexedDBStorage.FILE_STORE], "readwrite");
+    const store = transaction.objectStore(IndexedDBStorage.FILE_STORE);
 
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
 
-      // Clear files
-      const fileRequest = fileStore.getAllKeys();
-      fileRequest.onsuccess = () => {
-        const keys = fileRequest.result as string[];
-        for (const key of keys) {
-          if (key.startsWith(prefix)) {
-            fileStore.delete(key);
-          }
-        }
-      };
-
-      // Clear metadata
-      const metaRequest = metadataStore.getAllKeys();
-      metaRequest.onsuccess = () => {
-        const keys = metaRequest.result as string[];
-        for (const key of keys) {
-          if (key.startsWith(prefix)) {
-            metadataStore.delete(key);
-          }
-        }
-      };
+      // Clear all files
+      const request = store.clear();
+      request.onerror = () => reject(request.error);
     });
   }
 
   private async downloadFile(
-    fileKey: string,
+    filename: string,
     url: string,
     progressTracker?: ProgressTracker,
   ): Promise<void> {
@@ -190,10 +133,10 @@ export class IndexedDBStorage implements FileStorage {
     }
 
     const blob = new Blob([combined]);
-    await this.saveFile(fileKey, blob);
+    await this.saveFile(filename, blob);
   }
 
-  private async saveFile(key: string, blob: Blob): Promise<void> {
+  private async saveFile(filename: string, blob: Blob): Promise<void> {
     if (!this.db) {
       throw new Error("IndexedDBStorage not initialized");
     }
@@ -201,14 +144,14 @@ export class IndexedDBStorage implements FileStorage {
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([IndexedDBStorage.FILE_STORE], "readwrite");
       const store = transaction.objectStore(IndexedDBStorage.FILE_STORE);
-      const request = store.put(blob, key);
+      const request = store.put(blob, filename);
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
   }
 
-  private async getFile(key: string): Promise<Blob | null> {
+  private async getFile(filename: string): Promise<Blob | null> {
     if (!this.db) {
       throw new Error("IndexedDBStorage not initialized");
     }
@@ -216,7 +159,7 @@ export class IndexedDBStorage implements FileStorage {
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([IndexedDBStorage.FILE_STORE], "readonly");
       const store = transaction.objectStore(IndexedDBStorage.FILE_STORE);
-      const request = store.get(key);
+      const request = store.get(filename);
 
       request.onsuccess = () => {
         resolve(request.result || null);
@@ -225,7 +168,7 @@ export class IndexedDBStorage implements FileStorage {
     });
   }
 
-  private async fileExists(key: string): Promise<boolean> {
+  private async fileExists(filename: string): Promise<boolean> {
     if (!this.db) {
       throw new Error("IndexedDBStorage not initialized");
     }
@@ -233,44 +176,10 @@ export class IndexedDBStorage implements FileStorage {
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([IndexedDBStorage.FILE_STORE], "readonly");
       const store = transaction.objectStore(IndexedDBStorage.FILE_STORE);
-      const request = store.count(key);
+      const request = store.count(filename);
 
       request.onsuccess = () => {
         resolve(request.result > 0);
-      };
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  private async saveMetadata(key: string, url: string): Promise<void> {
-    if (!this.db) {
-      throw new Error("IndexedDBStorage not initialized");
-    }
-
-    const metadata = `${IndexedDBStorage.CACHE_VERSION}\n${url}`;
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([IndexedDBStorage.METADATA_STORE], "readwrite");
-      const store = transaction.objectStore(IndexedDBStorage.METADATA_STORE);
-      const request = store.put(metadata, key);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  private async getMetadata(key: string): Promise<string | null> {
-    if (!this.db) {
-      throw new Error("IndexedDBStorage not initialized");
-    }
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([IndexedDBStorage.METADATA_STORE], "readonly");
-      const store = transaction.objectStore(IndexedDBStorage.METADATA_STORE);
-      const request = store.get(key);
-
-      request.onsuccess = () => {
-        resolve(request.result || null);
       };
       request.onerror = () => reject(request.error);
     });

@@ -7,17 +7,17 @@ import { ProgressTracker } from "./progress-tracker";
  * Uses the browser's private file system for efficient file storage and access.
  */
 export class OPFSStorage implements FileStorage {
-  private static readonly CACHE_VERSION = "v1";
+  private static readonly DIR_NAME = "dictionaries";
   private dictDir: FileSystemDirectoryHandle | undefined;
 
-  constructor(private dirName: string) {}
+  constructor() {}
 
   async initialize(): Promise<void> {
     if (this.dictDir) return;
 
     try {
       const opfsRoot = await navigator.storage.getDirectory();
-      this.dictDir = await opfsRoot.getDirectoryHandle(this.dirName, { create: true });
+      this.dictDir = await opfsRoot.getDirectoryHandle(OPFSStorage.DIR_NAME, { create: true });
     } catch (error) {
       throw new Error(`Failed to initialize OPFS: ${error}`);
     }
@@ -32,28 +32,17 @@ export class OPFSStorage implements FileStorage {
       throw new Error("OPFSStorage not initialized");
     }
 
-    let needsDownload = false;
-
+    // Check if file exists
+    let fileExists = false;
     try {
       await this.dictDir.getFileHandle(filename);
-
-      // Check if we need to update based on cache version
-      const metadataHandle = await this.dictDir.getFileHandle(`${filename}.meta`).catch(() => null);
-      if (metadataHandle) {
-        const metadataFile = await metadataHandle.getFile();
-        const metadata = await metadataFile.text();
-        const [storedVersion, storedUrl] = metadata.split("\n");
-        needsDownload = storedVersion !== OPFSStorage.CACHE_VERSION || storedUrl !== url;
-      } else {
-        needsDownload = true;
-      }
+      fileExists = true;
     } catch {
-      needsDownload = true;
+      // File doesn't exist
     }
 
-    if (needsDownload) {
+    if (!fileExists) {
       await this.downloadFile(filename, url, progressTracker);
-      await this.saveMetadata(filename, url);
     }
 
     return this.getFileReader(filename);
@@ -76,7 +65,7 @@ export class OPFSStorage implements FileStorage {
   async clearAll(): Promise<void> {
     const opfsRoot = await navigator.storage.getDirectory();
     try {
-      await opfsRoot.removeEntry(this.dirName, { recursive: true });
+      await opfsRoot.removeEntry(OPFSStorage.DIR_NAME, { recursive: true });
     } catch {
       // Directory might not exist
     }
@@ -116,14 +105,5 @@ export class OPFSStorage implements FileStorage {
       await writer.close();
       reader.releaseLock();
     }
-  }
-
-  private async saveMetadata(filename: string, url: string): Promise<void> {
-    const metadataHandle = await this.dictDir!.getFileHandle(`${filename}.meta`, {
-      create: true,
-    });
-    const writer = await metadataHandle.createWritable();
-    await writer.write(`${OPFSStorage.CACHE_VERSION}\n${url}`);
-    await writer.close();
   }
 }

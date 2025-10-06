@@ -2,6 +2,10 @@
 :root {
   --t-primary: #025be0;
   --t-on-primary: white;
+
+  --t-border: #ccc;
+  --t-input-background: white;
+  --t-focus-ring: var(--t-primary);
 }
 
 /* light theme */
@@ -21,6 +25,9 @@
 
     --t-secondary: rgb(32, 32, 32);
     --t-on-secondary: white;
+
+    --t-border: #666;
+    --t-input-background: #222;
   }
 
   a {

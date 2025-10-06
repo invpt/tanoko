@@ -30,6 +30,7 @@
     ]
   },
   "dependencies": {
+    "bits-ui": "^2.11.4",
     "lru-cache": "^11.1.0",
     "lucide-svelte": "^0.535.0",
     "sv-router": "^0.7.2",

@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { HTMLButtonAttributes } from "svelte/elements";
 
-  interface Props extends HTMLButtonAttributes {}
+  interface Props extends HTMLButtonAttributes {
+    variant?: "primary" | "secondary";
+  }
 
-  const { children, ...restProps }: Props = $props();
+  const { variant = "primary", children, ...restProps }: Props = $props();
 </script>
 
-<button {...restProps}>
+<button {...restProps} data-variant={variant}>
   {@render children?.()}
 </button>
 
@@ -15,11 +17,20 @@
     all: unset;
     cursor: pointer;
     user-select: none;
-    background-color: var(--t-primary);
-    color: var(--t-on-primary);
     padding: 2px 10px;
     border-radius: 6px;
     font-size: 0.875rem;
+  }
+
+  button[data-variant="primary"] {
+    background-color: var(--t-primary);
+    color: var(--t-on-primary);
+  }
+
+  button[data-variant="secondary"] {
+    background-color: var(--t-secondary);
+    color: var(--t-on-secondary);
+    border: 1px solid var(--t-border);
   }
 
   button:hover:not(:disabled) {

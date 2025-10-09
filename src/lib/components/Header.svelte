@@ -4,6 +4,7 @@
   import { Language } from "../dict";
   import { searchParams } from "sv-router";
   import { searchState } from "../reactives/search.svelte";
+  import AlertDialog from "./AlertDialog.svelte";
 
   let query = $derived(searchParams.get("q") ?? "");
   let language = $derived.by(() => {
@@ -19,6 +20,11 @@
 
   let isDebouncing = $state(false);
   let debounceTimer: number | null = null;
+  let showLanguageDialog = $state(false);
+  const languageActions = [
+    { value: Language.Chinese, label: "Chinese" },
+    { value: Language.Japanese, label: "Japanese" },
+  ];
 
   $effect(() => {
     query;
@@ -42,6 +48,8 @@
     }
 
     if (language == null) {
+      // Show dialog to select language
+      showLanguageDialog = true;
       return;
     }
 
@@ -53,6 +61,10 @@
         search: new URLSearchParams({ q: query, lang: language }).toString(),
       });
     }
+  };
+
+  const handleLanguageAction = (selectedLang: Language) => {
+    search(selectedLang);
   };
 
   const handleKeyUp: KeyboardEventHandler<HTMLInputElement> = (ev) => {
@@ -103,6 +115,15 @@
     <a class="reviews" href="/settings">Settings</a>
   </div>
 </nav>
+
+<AlertDialog
+  bind:open={showLanguageDialog}
+  title="Select a language"
+  description="Choose a language for your search."
+  actions={languageActions}
+  cancelText="Cancel"
+  onAction={handleLanguageAction}
+/>
 
 <style>
   nav {

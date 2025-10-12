@@ -9,5 +9,17 @@ body {
   color: var(--t-on-background);
 
   font-size: 18px;
-  font-family: "Source Sans 3", sans-serif;
+  font-family: "Ysabeau", serif;
+}
+
+[lang="zh-Hans"] {
+  font-family: "Ysabeau", "Noto Serif SC", serif;
+}
+
+[lang="zh-Hant"] {
+  font-family: "Ysabeau", "Noto Serif TC", serif;
+}
+
+[lang="ja"] {
+  font-family: "Ysabeau", "Noto Serif JP", serif;
 }

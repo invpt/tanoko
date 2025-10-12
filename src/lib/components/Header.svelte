@@ -5,6 +5,7 @@
   import { searchParams } from "sv-router";
   import { searchState } from "../reactives/search.svelte";
   import AlertDialog from "./AlertDialog.svelte";
+  import { ChineseCharacterVariant, preferences } from "../reactives/preferences.svelte";
 
   let query = $derived(searchParams.get("q") ?? "");
   let language = $derived.by(() => {
@@ -76,7 +77,7 @@
 </script>
 
 <nav class={{ loading: searchState.loading || isDebouncing }}>
-  <a class="title" href="/">
+  <a class="title" href="/" lang="ja">
     <span>ただ</span>
     <span class="titleDeemph">の</span>
     <span>ことば</span>
@@ -87,10 +88,10 @@
       onkeyup={handleKeyUp}
       placeholder="Search"
       lang={language === Language.Chinese
-        ? "zh"
-        : language === Language.Japanese
-          ? "jp"
-          : undefined}
+        ? preferences.chinese.characterVariant === ChineseCharacterVariant.simplified
+          ? "zh-Hans"
+          : "zh-Hant"
+        : "ja"}
       autocapitalize="none"
       autocomplete="off"
       autocorrect="off"
@@ -100,6 +101,7 @@
       onclick={() => search(Language.Chinese)}
       class={["chinese", { selected: language === Language.Chinese }]}
       title="Chinese"
+      lang="zh-Hans"
     >
       中
     </button>
@@ -107,6 +109,7 @@
       onclick={() => search(Language.Japanese)}
       class={["japanese", { selected: language === Language.Japanese }]}
       title="Japanese"
+      lang="ja"
     >
       日
     </button>
@@ -177,7 +180,6 @@
 
   .title {
     margin: auto 0;
-    font-family: "Noto Serif JP";
     font-size: 28px;
     color: var(--t-on-secondary);
     text-decoration: none;
@@ -233,8 +235,8 @@
   }
 
   .search-wrapper button {
-    all: unset;
-
+    outline: none;
+    border: none;
     user-select: none;
     cursor: pointer;
 
@@ -244,20 +246,16 @@
     background-color: var(--bg);
     color: var(--fg);
 
-    padding: 8px 10px;
+    padding: 4px 8px;
+
+    font-size: 1.1em;
   }
 
   .search-wrapper button:hover {
     background-color: color-mix(in hsl, var(--bg), black 10%);
   }
 
-  .search-wrapper .chinese {
-    font-family: "Noto Sans SC";
-  }
-
   .search-wrapper .japanese {
-    font-family: "Noto Sans JP";
-
     border-top-right-radius: 16px;
     border-bottom-right-radius: 16px;
   }

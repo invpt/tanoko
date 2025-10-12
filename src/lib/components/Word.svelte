@@ -1,6 +1,6 @@
 <script lang="ts">
   import { p } from "../../router";
-  import { type DictionaryEntry } from "../dict";
+  import { Language, type DictionaryEntry } from "../dict";
   import { formatBopomofo } from "../format/bopomofo";
   import { formatCedict } from "../format/cedict";
   import { segmentFurigana } from "../format/furigana";
@@ -98,8 +98,6 @@
       }
     })(),
   );
-
-  const hasAnyGloss = $derived(headline.segments.some((el) => el.gloss !== undefined));
 </script>
 
 {#snippet ordinal(i: number, first: boolean = true)}
@@ -115,33 +113,31 @@
 {/snippet}
 
 <div
-  class={[
-    "word",
-    word.lang,
-    preferences.chinese.characterVariant,
-    preferences.chinese.pronunciationGuide,
-    { multipleReadingGroups },
-  ]}
+  class={["word", word.lang, preferences.chinese.pronunciationGuide, { multipleReadingGroups }]}
+  lang={word.lang === Language.Chinese
+    ? preferences.chinese.characterVariant === ChineseCharacterVariant.simplified
+      ? "zh-Hans"
+      : "zh-Hant"
+    : "ja"}
 >
-  <span>
-    <ruby>
-      {#each headline.segments as segment}
-        <rb>{segment.base}</rb>{#if hasAnyGloss}
-          <rt
-            >{#if word.type === ItemType.cedict}<div>
-                {segment.gloss}
-              </div>{:else}{segment.gloss}{/if}</rt
-          >
-        {/if}
-      {/each}
-    </ruby>
+  <div class="headline">
+    {#each headline.segments as segment}
+      <ruby>
+        <rt
+          >{#if word.type === ItemType.jmdict}
+            {#each [...(segment.gloss || "")] as char}<span>{char}</span>{/each}
+          {:else}{segment.gloss}{/if}</rt
+        ><rb>{segment.base}</rb>
+      </ruby>
+    {/each}
     {@render ordinals(headline.applicable)}
+    <div style:flex="1"></div>
     <a
       href={p("/item/:type/:index", { type: word.type, index: word.index.toString() })}
       class="rank"
       title="This word's frequency rank in the dictionary">#{rank}</a
     >
-  </span>
+  </div>
 
   {#if otherWritings.length > 0 || otherReadings.length > 0}
     <div class="otherForms">
@@ -204,25 +200,41 @@
     color: color-mix(in srgb, var(--t-on-background) 50%, transparent);
   }
 
+  .headline {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
   ruby {
+    all: unset;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
     font-size: 34px;
+    line-height: 100%;
   }
 
   rt {
+    all: unset;
     user-select: none;
     pointer-events: none;
+    display: flex;
+    justify-content: space-around;
+    font-size: 50%;
+    line-height: 100%;
   }
 
-  .zh.simplified rb {
-    font-family: "Noto Serif SC";
-  }
-
-  .zh.traditional rb {
-    font-family: "Noto Serif TC";
+  rb {
+    all: unset;
+    display: flex;
+    justify-content: space-around;
+    line-height: 100%;
   }
 
   .zh rt {
-    font-family: "Ysabeau";
     margin: 0 2px;
   }
 
@@ -243,20 +255,9 @@
     margin-right: 0.1em;
   }
 
-  .zh.bopomofo.simplified rt {
-    font-family: "Noto Serif SC";
-  }
-
-  .zh.bopomofo.traditional rt {
-    font-family: "Noto Serif TC";
-  }
-
-  .jp ruby {
-    font-family: "Noto Serif JP";
-  }
-
   .sensesWrapper {
     margin: 0 12px;
+    margin-top: 4px;
   }
 
   .wordSenses {
@@ -268,6 +269,7 @@
   .wordPartOfSpeech {
     color: gray;
     font-size: 0.75em;
+    line-height: 100%;
   }
 
   .wordSense:not(:last-child) {
@@ -275,7 +277,6 @@
   }
 
   .wordSense::marker {
-    font-size: 0.75em;
     color: gray;
   }
 
@@ -285,10 +286,6 @@
     color: color-mix(in srgb, var(--t-on-background) 75%, transparent);
   }
 
-  .jp .otherForm {
-    font-family: "Noto Serif JP";
-  }
-
   .readingGroupNumber {
     display: none;
   }
@@ -296,6 +293,11 @@
   .multipleReadingGroups .readingGroupNumber {
     display: unset;
     color: color-mix(in srgb, var(--t-on-background) 50%, transparent);
+    font-size: 1.25em;
+  }
+
+  .multipleReadingGroups .readingGroupNumber:first-of-type {
+    margin-left: 0.1em;
   }
 
   .otherFormsLabel {

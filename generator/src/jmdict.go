@@ -134,6 +134,9 @@ type JMdictWord struct {
 
 	// Sense contains senses = translations + some related data
 	Sense []JMdictSense `json:"sense"`
+
+	// COMPUTED - NOT PART OF JMdict
+	Furigana []uint
 }
 
 // JMdictKanji represents kanji writing of a word

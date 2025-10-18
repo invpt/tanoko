@@ -140,6 +140,10 @@ func (e JMdictWord) Encode(b *encode.Buffer) {
 			encode.String(b, gloss.Text)
 		}
 	}
+
+	for _, f := range encode.Array(b, e.Furigana) {
+		encode.Uvarint(b, f)
+	}
 }
 
 func (e JMdictWord) Native(add func(text string)) {

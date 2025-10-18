@@ -23,7 +23,7 @@ export type { JMdictWord, Kanjidic2Character };
 
 export type DictionaryEntry =
   | (CedictWord & { lang: Language; type: ItemType.cedict; index: number })
-  | (JMdictWord & { lang: Language; type: ItemType.jmdict; index: number });
+  | (JMdictWord & { furigana: number[]; lang: Language; type: ItemType.jmdict; index: number });
 
 export type CedictWord = {
   traditional: string;
@@ -221,12 +221,15 @@ function parseJmdictEntry(index: number, decoder: Decoder): DictionaryEntry | un
       }),
     );
 
+    const furigana = Array.from(decoder.iterArray(() => decoder.uvarint()));
+
     return {
       index,
       id,
       kanji,
       kana,
       sense,
+      furigana,
       lang: Language.Japanese,
       type: ItemType.jmdict,
     };

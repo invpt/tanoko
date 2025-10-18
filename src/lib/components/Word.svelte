@@ -59,7 +59,7 @@
           writings.length !== 0 && (writings[0].common || !readings[0].common);
 
         const headline = useKanjiHeadline
-          ? segmentFurigana(writings[0].text, readings[0].text)
+          ? segmentFurigana(writings[0].text, readings[0].text, word.furigana)
           : [{ base: readings[0].text }];
 
         const multipleReadingGroups = readingGroups.length > 1;

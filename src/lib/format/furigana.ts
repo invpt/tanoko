@@ -3,10 +3,27 @@ export type FuriganaSegment = {
   gloss?: string;
 };
 
-export function segmentFurigana(kanji: string, kana: string): FuriganaSegment[] {
+export function segmentFurigana(
+  kanji: string,
+  kana: string,
+  furigana: number[],
+): FuriganaSegment[] {
   const segments: FuriganaSegment[] = [];
   let kanjiChars = [...kanji];
   let kanaChars = [...kana];
+
+  if (furigana.length === kanjiChars.length) {
+    for (let i = 0; i < kanjiChars.length; i++) {
+      const gloss = kanaChars.slice(0, furigana[i]).join("");
+      kanaChars = kanaChars.slice(furigana[i]);
+      segments.push({
+        base: kanjiChars[i],
+        gloss: gloss === kanjiChars[i] ? undefined : gloss,
+      });
+    }
+
+    return segments;
+  }
 
   while (kanjiChars.length > 0 || kanaChars.length > 0) {
     let kanjiMatch = -1;

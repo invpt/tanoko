@@ -62,7 +62,7 @@ func main() {
 		panic(err)
 	}
 
-	_ = kanjidic
+	computeFurigana(jm.Words, kanjidic.Characters)
 
 	fmt.Println("Generating files...")
 

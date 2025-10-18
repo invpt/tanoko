@@ -1,5 +1,6 @@
-@import "reset.css";
 @import "fonts.css";
+@import "gen/fonts.css";
+@import "reset.css";
 @import "theme.css";
 
 body {

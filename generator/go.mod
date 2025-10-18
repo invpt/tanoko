@@ -1,8 +1,13 @@
 module github.com/invpt/tanoko/generator
 
-go 1.23.3
+go 1.24.0
 
-require github.com/invpt/wordfreq v0.0.0-20250725162739-7fed92b93469
+toolchain go1.24.5
+
+require (
+	github.com/invpt/wordfreq v0.0.0-20250725162739-7fed92b93469
+	golang.org/x/image v0.32.0
+)
 
 require (
 	github.com/go-ego/gse v0.80.3 // indirect
@@ -12,5 +17,5 @@ require (
 	github.com/vcaesar/cedar v0.20.2 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 )

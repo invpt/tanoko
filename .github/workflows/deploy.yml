@@ -85,10 +85,13 @@ jobs:
         if: steps.cache-generator-outputs.outputs.cache-hit != 'true'
         env:
           DATA_BASE_URL: https://data.tanoko.org/
-        run: pnpm run build
+        run: |
+          rm -r dist/
+          pnpm run build
       - name: Separate bin and woff2 files
         if: steps.cache-generator-outputs.outputs.cache-hit != 'true'
         run: |
+          rm -r datafiles/
           mkdir datafiles
           mv dist/**/*.{bin,woff2} datafiles/
       - name: Deploy datafiles

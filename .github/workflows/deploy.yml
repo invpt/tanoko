@@ -43,6 +43,7 @@ jobs:
           path: |
             generator/generator
             dist
+            datafiles
           key: generator-outputs-${{ steps.generator-hash.outputs.hash }}
           restore-keys: |
             generator-outputs-
@@ -86,6 +87,7 @@ jobs:
           DATA_BASE_URL: https://data.tanoko.org/
         run: pnpm run build
       - name: Separate bin files
+        if: steps.cache-generator-outputs.outputs.cache-hit != 'true'
         run: |
           mkdir datafiles
           mv dist/**/*.bin datafiles/

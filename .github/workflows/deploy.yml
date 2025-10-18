@@ -26,13 +26,26 @@ jobs:
       - name: Get week number
         id: date
         run: echo "week=$(date +'%Y-W%U')" >> $GITHUB_OUTPUT
-      - name: Cache generator files
+      - name: Get generator files hash
+        id: generator-hash
+        run: echo "hash=$(find generator -type f -name '*.go' -o -name 'go.mod' -o -name 'go.sum' | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+      - name: Cache generator inputs
         uses: actions/cache@v4
         with:
           path: generator/cache
           key: generator-cache-${{ steps.date.outputs.week }}
           restore-keys: |
             generator-cache-
+      - name: Cache generator outputs
+        id: cache-generator-outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            generator/generator
+            dist
+          key: generator-outputs-${{ steps.generator-hash.outputs.hash }}
+          restore-keys: |
+            generator-outputs-
       - name: Download rclone
         run: |
           curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip
@@ -55,14 +68,20 @@ jobs:
           region = auto
           endpoint = $ENDPOINT
           EOF
+      - name: Install font tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libharfbuzz-bin woff2
       - name: Install dependencies
         run: pnpm install
       - name: Generate assets
+        if: steps.cache-generator-outputs.outputs.cache-hit != 'true'
         run: |
           cd generator
           go build -o generator .
           ./generator
       - name: Build
+        if: steps.cache-generator-outputs.outputs.cache-hit != 'true'
         env:
           DATA_BASE_URL: https://data.tanoko.org/
         run: pnpm run build

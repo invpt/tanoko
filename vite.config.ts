@@ -13,7 +13,7 @@ export default defineConfig({
   experimental: {
     renderBuiltUrl(filename) {
       if (process.env.DATA_BASE_URL != null) {
-        const match = filename.match(/^assets\/(.*\.bin)$/);
+        const match = filename.match(/^assets\/(.*\.(?:bin|woff2))$/);
         if (match) {
           return process.env.DATA_BASE_URL + match[1];
         }

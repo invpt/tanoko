@@ -86,11 +86,11 @@ jobs:
         env:
           DATA_BASE_URL: https://data.tanoko.org/
         run: pnpm run build
-      - name: Separate bin files
+      - name: Separate bin and woff2 files
         if: steps.cache-generator-outputs.outputs.cache-hit != 'true'
         run: |
           mkdir datafiles
-          mv dist/**/*.bin datafiles/
+          mv dist/**/*.{bin,woff2} datafiles/
       - name: Deploy datafiles
         run: ./rclone sync datafiles/ r2:tanoko/
       - name: Deploy app

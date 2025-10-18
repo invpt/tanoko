@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -101,7 +102,7 @@ func main() {
 		totalGlyphs += len(subset.RuneSet)
 	}
 
-	approxTotalClusters := 200
+	approxTotalClusters := 300
 
 	type exportedCluster struct {
 		name    string
@@ -110,7 +111,24 @@ func main() {
 	}
 
 	exportedClusters := []exportedCluster{}
+
+	type dedupEntry struct {
+		scripts subset.Scripts
+		subset  *subset.DedupSubset
+	}
+	dedupEntries := make([]dedupEntry, 0, len(dedupSubsets))
 	for scripts, dedupSubset := range dedupSubsets {
+		dedupEntries = append(dedupEntries, dedupEntry{scripts: scripts, subset: dedupSubset})
+	}
+
+	sort.Slice(dedupEntries, func(i, j int) bool {
+		return dedupEntries[i].scripts < dedupEntries[j].scripts
+	})
+
+	for _, entry := range dedupEntries {
+		scripts := entry.scripts
+		dedupSubset := entry.subset
+
 		if len(dedupSubset.RuneSet) == 0 {
 			// this shouldn't ever happen if everything went right
 			panic("empty rune set")

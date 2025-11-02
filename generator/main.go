@@ -174,86 +174,80 @@ func main() {
 
 	css := strings.Builder{}
 	for _, cluster := range exportedClusters {
-		for _, script := range subset.ScriptsOrdered {
-			if cluster.scripts&script == 0 {
+		css.WriteString("@font-face{font-family:\"Noto Serif ")
+		css.WriteString(cluster.scripts.Names())
+		css.WriteString("\";font-style:normal;")
+		css.WriteString("font-weight:400;")
+		css.WriteString("font-display:swap;")
+		css.WriteString("src:url(/src/assets/gen/")
+		css.WriteString(cluster.name)
+		css.WriteString(".woff2)format(\"woff2\");")
+		css.WriteString("unicode-range:")
+
+		// Convert map to sorted slice for range generation
+		runes := make([]rune, 0, len(cluster.runes))
+		for r := range cluster.runes {
+			runes = append(runes, r)
+		}
+
+		// Sort the runes
+		for i := 0; i < len(runes); i++ {
+			for j := i + 1; j < len(runes); j++ {
+				if runes[i] > runes[j] {
+					runes[i], runes[j] = runes[j], runes[i]
+				}
+			}
+		}
+
+		first := true
+		rangeStart := rune(0)
+		prev := rune(0)
+
+		for i, r := range runes {
+			if i == 0 {
+				rangeStart = r
+				prev = r
 				continue
 			}
 
-			css.WriteString("@font-face{font-family:\"Noto Serif ")
-			css.WriteString(script.Names())
-			css.WriteString("\";font-style:normal;")
-			css.WriteString("font-weight:400;")
-			css.WriteString("font-display:swap;")
-			css.WriteString("src:url(/src/assets/gen/")
-			css.WriteString(cluster.name)
-			css.WriteString(".woff2)format(\"woff2\");")
-			css.WriteString("unicode-range:")
-
-			// Convert map to sorted slice for range generation
-			runes := make([]rune, 0, len(cluster.runes))
-			for r := range cluster.runes {
-				runes = append(runes, r)
-			}
-
-			// Sort the runes
-			for i := 0; i < len(runes); i++ {
-				for j := i + 1; j < len(runes); j++ {
-					if runes[i] > runes[j] {
-						runes[i], runes[j] = runes[j], runes[i]
-					}
-				}
-			}
-
-			first := true
-			rangeStart := rune(0)
-			prev := rune(0)
-
-			for i, r := range runes {
-				if i == 0 {
-					rangeStart = r
-					prev = r
-					continue
-				}
-
-				if r == prev+1 {
-					prev = r
-					continue
-				}
-
-				// End of a range, write it out
-				if !first {
-					css.WriteRune(',')
-				}
-				first = false
-
-				css.WriteString("U+")
-				css.WriteString(strings.ToUpper(strconv.FormatInt(int64(rangeStart), 16)))
-
-				if rangeStart != prev {
-					css.WriteString("-")
-					css.WriteString(strings.ToUpper(strconv.FormatInt(int64(prev), 16)))
-				}
-
-				rangeStart = r
+			if r == prev+1 {
 				prev = r
+				continue
 			}
 
-			// Write the final range
-			if len(runes) > 0 {
-				if !first {
-					css.WriteRune(',')
-				}
-				css.WriteString("U+")
-				css.WriteString(strings.ToUpper(strconv.FormatInt(int64(rangeStart), 16)))
+			// End of a range, write it out
+			if !first {
+				css.WriteRune(',')
+			}
+			first = false
 
-				if rangeStart != prev {
-					css.WriteString("-")
-					css.WriteString(strings.ToUpper(strconv.FormatInt(int64(prev), 16)))
-				}
+			css.WriteString("U+")
+			css.WriteString(strings.ToUpper(strconv.FormatInt(int64(rangeStart), 16)))
+
+			if rangeStart != prev {
+				css.WriteString("-")
+				css.WriteString(strings.ToUpper(strconv.FormatInt(int64(prev), 16)))
 			}
 
-			css.WriteString(";}\n")
+			rangeStart = r
+			prev = r
 		}
+
+		// Write the final range
+		if len(runes) > 0 {
+			if !first {
+				css.WriteRune(',')
+			}
+			css.WriteString("U+")
+			css.WriteString(strings.ToUpper(strconv.FormatInt(int64(rangeStart), 16)))
+
+			if rangeStart != prev {
+				css.WriteString("-")
+				css.WriteString(strings.ToUpper(strconv.FormatInt(int64(prev), 16)))
+			}
+		}
+
+		css.WriteString(";}\n")
 	}
 
 	cssFilePath := filepath.Join(genSrcDir, "fonts.css")

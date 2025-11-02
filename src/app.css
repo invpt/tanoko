@@ -15,13 +15,16 @@ body {
 }
 
 [lang="zh-Hans"] {
-  font-family: "Ysabeau", "Noto Serif SC", serif;
+  font-family:
+    "Ysabeau", "Noto Serif SC", "Noto Serif SCTC", "Noto Serif SCJP", "Noto Serif SCTCJP", serif;
 }
 
 [lang="zh-Hant"] {
-  font-family: "Ysabeau", "Noto Serif TC", serif;
+  font-family:
+    "Ysabeau", "Noto Serif TC", "Noto Serif SCTC", "Noto Serif TCJP", "Noto Serif SCTCJP", serif;
 }
 
 [lang="ja"] {
-  font-family: "Ysabeau", "Noto Serif JP", serif;
+  font-family:
+    "Ysabeau", "Noto Serif JP", "Noto Serif SCJP", "Noto Serif TCJP", "Noto Serif SCTCJP", serif;
 }

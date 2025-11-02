@@ -63,7 +63,8 @@
     searchState.loading = true;
 
     try {
-      for (let i = 0; i < 10; i++) {
+      const newResults = [];
+      for (let i = 0; i < 100; i++) {
         const result = await generator.next();
         if (result.done) {
           generator = undefined;
@@ -74,9 +75,10 @@
             clear = false;
           }
 
-          results.push(result.value);
+          newResults.push(result.value);
         }
       }
+      results.push(...newResults);
 
       if (clear) {
         results = [];

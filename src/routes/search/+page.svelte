@@ -1,12 +1,12 @@
 <script lang="ts">
   import { searchParams } from "sv-router";
-  import { dict, Language, type DictionaryEntry } from "../lib/dict";
-  import Word from "../lib/components/Word.svelte";
-  import { processQuery } from "../lib/query";
+  import { dict, Language, type DictionaryEntry } from "../../lib/dict";
+  import Word from "../../components/Word.svelte";
+  import { processQuery } from "../../lib/query";
   import { Languages } from "lucide-svelte";
-  import { type Query } from "../lib/query/interfaces";
-  import { ItemType } from "../lib/item";
-  import { searchState } from "../lib/reactives/search.svelte";
+  import { type Query } from "../../lib/query/interfaces";
+  import { ItemType } from "../../lib/item";
+  import { searchState } from "../../reactives/search.svelte";
 
   const query = $derived(searchParams.get("q"));
   const language = $derived.by(() => {

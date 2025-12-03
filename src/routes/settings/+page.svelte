@@ -1,12 +1,12 @@
 <script lang="ts">
-  import Button from "../lib/components/Button.svelte";
-  import RadioGroup from "../lib/components/RadioGroup.svelte";
-  import { dict } from "../lib/dict";
+  import Button from "../../components/base/Button.svelte";
+  import RadioGroup from "../../components/base/RadioGroup.svelte";
+  import { dict } from "../../lib/dict";
   import {
     ChineseCharacterVariant,
     ChinesePronunciationGuide,
     preferences,
-  } from "../lib/reactives/preferences.svelte";
+  } from "../../reactives/preferences.svelte";
 
   const handleClearData = async () => {
     await dict.clearData();
@@ -15,7 +15,7 @@
 </script>
 
 <h2>Chinese settings</h2>
-<small>Character variant</small>
+<p class="text-sm">Character variant</p>
 <RadioGroup
   options={[
     { label: "Simplified", value: ChineseCharacterVariant.simplified },
@@ -23,7 +23,7 @@
   ]}
   bind:value={preferences.chinese.characterVariant}
 />
-<small>Pronunciation guide</small>
+<p class="text-sm">Pronunciation guide</p>
 <RadioGroup
   options={[
     { label: "Pinyin", value: ChinesePronunciationGuide.pinyin },

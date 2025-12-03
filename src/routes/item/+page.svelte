@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Word from "../lib/components/Word.svelte";
-  import { dict, Language } from "../lib/dict";
-  import { ItemType } from "../lib/item";
-  import { route } from "../router";
+  import Word from "../../components/Word.svelte";
+  import { dict, Language } from "../../lib/dict";
+  import { ItemType } from "../../lib/item";
+  import { route } from "../../router";
 
   const params = $derived(route.getParams("/item/:type/:index"));
   const promise = $derived(

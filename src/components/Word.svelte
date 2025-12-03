@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { p } from "../../router";
-  import { Language, type DictionaryEntry } from "../dict";
-  import { formatBopomofo } from "../format/bopomofo";
-  import { formatCedict } from "../format/cedict";
-  import { segmentFurigana } from "../format/furigana";
-  import { formatPinyin, segmentPinyin } from "../format/pinyin";
-  import { ItemType } from "../item";
+  import { p } from "../router";
+  import { Language, type DictionaryEntry } from "../lib/dict";
+  import { formatBopomofo } from "../lib/format/bopomofo";
+  import { formatCedict } from "../lib/format/cedict";
+  import { segmentFurigana } from "../lib/format/furigana";
+  import { formatPinyin, segmentPinyin } from "../lib/format/pinyin";
+  import { ItemType } from "../lib/item";
   import {
     ChineseCharacterVariant,
     ChinesePronunciationGuide,

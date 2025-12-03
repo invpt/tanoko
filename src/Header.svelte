@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { KeyboardEventHandler } from "svelte/elements";
-  import { isActive, navigate } from "../../router";
-  import { Language } from "../dict";
+  import { isActive, navigate } from "./router";
+  import { Language } from "./lib/dict";
   import { searchParams } from "sv-router";
-  import { searchState } from "../reactives/search.svelte";
-  import AlertDialog from "./AlertDialog.svelte";
-  import { ChineseCharacterVariant, preferences } from "../reactives/preferences.svelte";
+  import { searchState } from "./reactives/search.svelte";
+  import AlertDialog from "./components/base/AlertDialog.svelte";
+  import { ChineseCharacterVariant, preferences } from "./reactives/preferences.svelte";
 
   let query = $derived(searchParams.get("q") ?? "");
   let language = $derived.by(() => {
@@ -185,17 +185,17 @@
     text-decoration: none;
     display: flex;
     align-items: baseline;
-    transform: translateY(-4px) rotate(-3deg);
+    transform: translateY(-2px) rotate(-3deg);
     transition: transform 0.15s;
     flex-wrap: wrap;
   }
 
   .title:hover {
-    transform: translateY(-5px) rotate(-3deg) scale(1.1);
+    transform: translateY(-2px) rotate(-3deg) scale(1.1);
   }
 
   .title:active {
-    transform: translateY(-5px) rotate(-3deg) scale(1.05);
+    transform: translateY(-2px) rotate(-3deg) scale(1.05);
   }
 
   .title :nth-child(1) {

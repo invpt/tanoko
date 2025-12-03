@@ -1,8 +1,8 @@
 import { createRouter } from "sv-router";
-import Home from "./routes/Home.svelte";
-import Settings from "./routes/Settings.svelte";
-import Search from "./routes/Search.svelte";
-import Item from "./routes/Item.svelte";
+import Home from "./routes/+page.svelte";
+import Settings from "./routes/settings/+page.svelte";
+import Search from "./routes/search/+page.svelte";
+import Item from "./routes/item/+page.svelte";
 
 export const { p, navigate, isActive, route } = createRouter({
   "/": Home,

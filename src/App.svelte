@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Router } from "sv-router";
   import "./router";
-  import Header from "./lib/components/Header.svelte";
+  import Header from "./Header.svelte";
 </script>
 
 <div class="top">

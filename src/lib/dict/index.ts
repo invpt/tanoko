@@ -68,8 +68,8 @@ class Dictionary {
 
     const results =
       query instanceof EnglishQuery
-        ? (await this.getInvertedIndex(language)).search(query)
-        : (await this.getRadixTree(language)).search(query);
+        ? (await this.getInvertedIndex(language, progressTracker)).search(query)
+        : (await this.getRadixTree(language, progressTracker)).search(query);
 
     for (const id of results) {
       const entry = await entryLoader.loadEntry(id);

@@ -15,7 +15,10 @@
   let { options, value = $bindable(), orientation = "horizontal" }: Props<T> = $props();
 </script>
 
-<RadioGroup.Root bind:value {orientation}>
+<RadioGroup.Root
+  bind:value={() => (value === undefined ? "" : value), (v) => (value = v === "" ? undefined : v)}
+  {orientation}
+>
   {#snippet child({ props })}
     <div {...props} class="radio-group" data-orientation={orientation}>
       {#each options as option (option.value)}

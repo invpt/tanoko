@@ -1,4 +1,5 @@
 import z from "zod";
+import { Language } from "../lib/dict";
 
 export enum ChineseCharacterVariant {
   simplified = "simplified",
@@ -13,6 +14,7 @@ export enum ChinesePronunciationGuide {
 export type Preferences = z.infer<typeof preferencesSchema>;
 
 const preferencesSchema = z.object({
+  language: z.enum(Language).optional(),
   chinese: z.object({
     characterVariant: z.enum(ChineseCharacterVariant),
     pronunciationGuide: z.enum(ChinesePronunciationGuide),

@@ -28,3 +28,11 @@ body {
   font-family:
     "Ysabeau", "Noto Serif JP", "Noto Serif SCJP", "Noto Serif TCJP", "Noto Serif SCTCJP", serif;
 }
+
+.text-sm {
+  font-size: 16px;
+}
+
+.text-rg {
+  font-size: 18px;
+}

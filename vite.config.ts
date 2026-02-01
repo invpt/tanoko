@@ -1,12 +1,6 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
-declare const process: {
-  env: {
-    DATA_BASE_URL?: string;
-  };
-};
-
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [svelte()],

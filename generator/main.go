@@ -160,7 +160,10 @@ func main() {
 
 		for _, cluster := range clusters {
 			name := fmt.Sprintf("NotoSerif-C%03d-%s", len(exportedClusters), scripts.Names())
-			subset.Export(genAssetDir, name, dedupSubset.FontIndex, cluster)
+			err := subset.Export(genAssetDir, name, dedupSubset.FontIndex, cluster)
+			if err != nil {
+				panic(err)
+			}
 			fmt.Println("Exported subcluster", name)
 			exportedClusters = append(exportedClusters, exportedCluster{
 				name:    name,

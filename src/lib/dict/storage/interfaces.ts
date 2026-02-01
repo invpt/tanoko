@@ -12,5 +12,4 @@ export interface FileStorage {
     progressTracker?: ProgressTracker,
   ): Promise<FileReader>;
   clearAll(): Promise<void>;
-  initialize(): Promise<void>;
 }

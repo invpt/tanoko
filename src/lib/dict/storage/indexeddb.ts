@@ -11,13 +11,13 @@ export class IndexedDBStorage implements FileStorage {
   private static readonly DB_VERSION = 1;
   private static readonly FILE_STORE = "files";
 
-  private db: IDBDatabase | undefined;
+  private db: IDBDatabase;
 
-  constructor() {}
+  private constructor(db: IDBDatabase) {
+    this.db = db;
+  }
 
-  async initialize(): Promise<void> {
-    if (this.db) return;
-
+  static async create(): Promise<IndexedDBStorage> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(IndexedDBStorage.DB_NAME, IndexedDBStorage.DB_VERSION);
 
@@ -26,8 +26,8 @@ export class IndexedDBStorage implements FileStorage {
       };
 
       request.onsuccess = () => {
-        this.db = request.result;
-        resolve();
+        const db = request.result;
+        resolve(new IndexedDBStorage(db));
       };
 
       request.onupgradeneeded = () => {
@@ -46,10 +46,6 @@ export class IndexedDBStorage implements FileStorage {
     url: string,
     progressTracker?: ProgressTracker,
   ): Promise<FileReader> {
-    if (!this.db) {
-      throw new Error("IndexedDBStorage not initialized");
-    }
-
     // Check if file exists
     const fileExists = await this.fileExists(filename);
 
@@ -61,10 +57,6 @@ export class IndexedDBStorage implements FileStorage {
   }
 
   private async getFileReader(filename: string): Promise<FileReader> {
-    if (!this.db) {
-      throw new Error("IndexedDBStorage not initialized");
-    }
-
     const blob = await this.getFile(filename);
 
     if (!blob) {
@@ -75,8 +67,6 @@ export class IndexedDBStorage implements FileStorage {
   }
 
   async clearAll(): Promise<void> {
-    if (!this.db) return;
-
     const transaction = this.db.transaction([IndexedDBStorage.FILE_STORE], "readwrite");
     const store = transaction.objectStore(IndexedDBStorage.FILE_STORE);
 
@@ -137,12 +127,8 @@ export class IndexedDBStorage implements FileStorage {
   }
 
   private async saveFile(filename: string, blob: Blob): Promise<void> {
-    if (!this.db) {
-      throw new Error("IndexedDBStorage not initialized");
-    }
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([IndexedDBStorage.FILE_STORE], "readwrite");
+      const transaction = this.db.transaction([IndexedDBStorage.FILE_STORE], "readwrite");
       const store = transaction.objectStore(IndexedDBStorage.FILE_STORE);
       const request = store.put(blob, filename);
 
@@ -152,12 +138,8 @@ export class IndexedDBStorage implements FileStorage {
   }
 
   private async getFile(filename: string): Promise<Blob | null> {
-    if (!this.db) {
-      throw new Error("IndexedDBStorage not initialized");
-    }
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([IndexedDBStorage.FILE_STORE], "readonly");
+      const transaction = this.db.transaction([IndexedDBStorage.FILE_STORE], "readonly");
       const store = transaction.objectStore(IndexedDBStorage.FILE_STORE);
       const request = store.get(filename);
 
@@ -169,12 +151,8 @@ export class IndexedDBStorage implements FileStorage {
   }
 
   private async fileExists(filename: string): Promise<boolean> {
-    if (!this.db) {
-      throw new Error("IndexedDBStorage not initialized");
-    }
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([IndexedDBStorage.FILE_STORE], "readonly");
+      const transaction = this.db.transaction([IndexedDBStorage.FILE_STORE], "readonly");
       const store = transaction.objectStore(IndexedDBStorage.FILE_STORE);
       const request = store.count(filename);
 

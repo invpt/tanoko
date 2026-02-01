@@ -8,16 +8,17 @@ import { ProgressTracker } from "./progress-tracker";
  */
 export class OPFSStorage implements FileStorage {
   private static readonly DIR_NAME = "dictionaries";
-  private dictDir: FileSystemDirectoryHandle | undefined;
+  private dictDir: FileSystemDirectoryHandle;
 
-  constructor() {}
+  private constructor(dictDir: FileSystemDirectoryHandle) {
+    this.dictDir = dictDir;
+  }
 
-  async initialize(): Promise<void> {
-    if (this.dictDir) return;
-
+  static async create(): Promise<OPFSStorage> {
     try {
       const opfsRoot = await navigator.storage.getDirectory();
-      this.dictDir = await opfsRoot.getDirectoryHandle(OPFSStorage.DIR_NAME, { create: true });
+      const dictDir = await opfsRoot.getDirectoryHandle(OPFSStorage.DIR_NAME, { create: true });
+      return new OPFSStorage(dictDir);
     } catch (error) {
       throw new Error(`Failed to initialize OPFS: ${error}`);
     }
@@ -28,10 +29,6 @@ export class OPFSStorage implements FileStorage {
     url: string,
     progressTracker?: ProgressTracker,
   ): Promise<FileReader> {
-    if (!this.dictDir) {
-      throw new Error("OPFSStorage not initialized");
-    }
-
     // Check if file exists
     let fileExists = false;
     try {
@@ -49,10 +46,6 @@ export class OPFSStorage implements FileStorage {
   }
 
   private async getFileReader(filename: string): Promise<FileReader> {
-    if (!this.dictDir) {
-      throw new Error("OPFSStorage not initialized");
-    }
-
     try {
       const fileHandle = await this.dictDir.getFileHandle(filename);
       const file = await fileHandle.getFile();
@@ -69,7 +62,6 @@ export class OPFSStorage implements FileStorage {
     } catch {
       // Directory might not exist
     }
-    this.dictDir = undefined;
   }
 
   private async downloadFile(
@@ -82,7 +74,7 @@ export class OPFSStorage implements FileStorage {
       throw new Error(`Failed to download ${url}: ${response.status}`);
     }
 
-    const fileHandle = await this.dictDir!.getFileHandle(filename, { create: true });
+    const fileHandle = await this.dictDir.getFileHandle(filename, { create: true });
     const writer = await fileHandle.createWritable();
     const reader = response.body!.getReader();
 

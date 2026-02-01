@@ -14,16 +14,15 @@ export class StorageFactory {
 
     if (await this.isOPFSAvailable()) {
       try {
-        storage = new OPFSStorage();
-        await storage.initialize();
+        storage = await OPFSStorage.create();
         console.log("Using OPFS for file storage");
       } catch (error) {
         console.warn("OPFS initialization failed, falling back to IndexedDB:", error);
-        storage = await this.createIndexedDBStorage();
+        storage = await IndexedDBStorage.create();
       }
     } else {
       console.log("OPFS not available, using IndexedDB for file storage");
-      storage = await this.createIndexedDBStorage();
+      storage = await IndexedDBStorage.create();
     }
 
     this.instance = storage;
@@ -63,11 +62,5 @@ export class StorageFactory {
       console.warn("OPFS test failed:", error);
       return false;
     }
-  }
-
-  private static async createIndexedDBStorage(): Promise<FileStorage> {
-    const storage = new IndexedDBStorage();
-    await storage.initialize();
-    return storage;
   }
 }

@@ -1,6 +1,11 @@
 import z from "zod";
 import { Language } from "../lib/dict";
 
+export enum FontPreference {
+  custom = "custom",
+  system = "system",
+}
+
 export enum ChineseCharacterVariant {
   simplified = "simplified",
   traditional = "traditional",
@@ -14,6 +19,7 @@ export enum ChinesePronunciationGuide {
 export type Preferences = z.infer<typeof preferencesSchema>;
 
 const preferencesSchema = z.object({
+  font: z.enum(FontPreference).default(FontPreference.custom),
   language: z.enum(Language).optional(),
   chinese: z.object({
     characterVariant: z.enum(ChineseCharacterVariant),
@@ -24,6 +30,7 @@ const preferencesSchema = z.object({
 const key = "tanoko-preferences";
 
 const defaultPreferenes: Preferences = {
+  font: FontPreference.custom,
   chinese: {
     characterVariant: ChineseCharacterVariant.simplified,
     pronunciationGuide: ChinesePronunciationGuide.pinyin,

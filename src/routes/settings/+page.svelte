@@ -5,6 +5,7 @@
   import {
     ChineseCharacterVariant,
     ChinesePronunciationGuide,
+    FontPreference,
     preferences,
   } from "../../reactives/preferences.svelte";
 
@@ -13,6 +14,16 @@
     console.log("Cleared");
   };
 </script>
+
+<h1>Settings</h1>
+<p class="text-sm">Font</p>
+<RadioGroup
+  options={[
+    { label: "Custom", value: FontPreference.custom },
+    { label: "System", value: FontPreference.system },
+  ]}
+  bind:value={preferences.font}
+/>
 
 <h2>Chinese settings</h2>
 <p class="text-sm">Character variant</p>

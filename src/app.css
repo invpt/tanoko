@@ -14,21 +14,6 @@ body {
   font-family: "Ysabeau", serif;
 }
 
-[lang="zh-Hans"] {
-  font-family:
-    "Ysabeau", "Noto Serif SC", "Noto Serif SCTC", "Noto Serif SCJP", "Noto Serif SCTCJP", serif;
-}
-
-[lang="zh-Hant"] {
-  font-family:
-    "Ysabeau", "Noto Serif TC", "Noto Serif SCTC", "Noto Serif TCJP", "Noto Serif SCTCJP", serif;
-}
-
-[lang="ja"] {
-  font-family:
-    "Ysabeau", "Noto Serif JP", "Noto Serif SCJP", "Noto Serif TCJP", "Noto Serif SCTCJP", serif;
-}
-
 .text-sm {
   font-size: 16px;
 }

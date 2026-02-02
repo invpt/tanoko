@@ -71,9 +71,13 @@
     </button>
   {/if}
 
-  {#each current?.results as result (result.type === ItemType.jmdict ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
-    <Word word={result} />
-    <div class="divider"></div>
+  {#each results as results}
+    <div class="results" style:display={results === current ? undefined : "none"}>
+      {#each results.results as result (result.type === ItemType.jmdict ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
+        <Word word={result} />
+        <div class="divider"></div>
+      {/each}
+    </div>
   {/each}
 
   <div class="message">
@@ -117,6 +121,12 @@
     width: 1em;
     height: 1em;
     min-width: 1em;
+  }
+
+  .results {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
   }
 
   .message {

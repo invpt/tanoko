@@ -15,12 +15,46 @@ export class OPFSStorage implements FileStorage {
   }
 
   static async create(): Promise<OPFSStorage> {
+    if (!(await OPFSStorage.isSupported())) {
+      throw new Error("OPFS is not supported in this environment");
+    }
+
     try {
       const opfsRoot = await navigator.storage.getDirectory();
       const dictDir = await opfsRoot.getDirectoryHandle(OPFSStorage.DIR_NAME, { create: true });
       return new OPFSStorage(dictDir);
     } catch (error) {
       throw new Error(`Failed to initialize OPFS: ${error}`);
+    }
+  }
+
+  private static async isSupported(): Promise<boolean> {
+    // Check basic API availability
+    if (!("storage" in navigator) || !("getDirectory" in navigator.storage)) {
+      return false;
+    }
+
+    // Test actual functionality to catch Firefox private mode
+    try {
+      const opfsRoot = await navigator.storage.getDirectory();
+
+      // Try to create a test directory and file to verify OPFS actually works
+      const testDir = await opfsRoot.getDirectoryHandle("__opfs_test__", { create: true });
+      const testFile = await testDir.getFileHandle("test.txt", { create: true });
+
+      // Try to write to the file to ensure it's not just a facade
+      const writer = await testFile.createWritable();
+      await writer.write("test");
+      await writer.close();
+
+      // Clean up test files
+      await testDir.removeEntry("test.txt");
+      await opfsRoot.removeEntry("__opfs_test__");
+
+      return true;
+    } catch (error) {
+      // OPFS appears available but throws errors (e.g., Firefox private mode)
+      return false;
     }
   }
 

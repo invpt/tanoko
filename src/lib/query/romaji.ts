@@ -3,22 +3,15 @@ import { NativeQuery } from "./interfaces";
 import { StringPrefixQuery } from "./prefix";
 
 class RomajiPrefixQuery extends StringPrefixQuery {
-  constructor(
-    private query: string,
-    possibleSuffixes: string[] = [],
-  ) {
+  constructor(query: string, possibleSuffixes: string[] = []) {
     super(query);
 
     // TODO: make use of this for more precise matching of incomplete romaji prefixes
     possibleSuffixes;
   }
 
-  toString() {
-    return `「${this.query}」`;
-  }
-
   kind() {
-    return "kana";
+    return "romaji";
   }
 }
 

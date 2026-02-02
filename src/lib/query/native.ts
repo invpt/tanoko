@@ -4,25 +4,17 @@ import { StringPrefixQuery } from "./prefix";
 
 class LanguagePrefixQuery extends StringPrefixQuery {
   constructor(
-    private query: string,
+    query: string,
     private language: Language,
   ) {
     super(query);
   }
 
-  toString(): string {
-    if (this.language === Language.Chinese) {
-      return ` “${this.query}” `;
-    } else {
-      return `「${this.query}」`;
-    }
-  }
-
   kind(): string {
     if (this.language === Language.Chinese) {
-      return "Chinese";
+      return "hanzi";
     } else {
-      return "Japanese";
+      return "kanji/kana";
     }
   }
 }

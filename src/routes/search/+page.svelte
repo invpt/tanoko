@@ -1,10 +1,8 @@
 <script lang="ts">
   import { searchParams } from "sv-router";
-  import { dict, Language, type DictionaryEntry } from "../../lib/dict";
+  import { Language } from "../../lib/dict";
   import Word from "../../components/Word.svelte";
-  import { processQuery } from "../../lib/query";
   import { Languages } from "lucide-svelte";
-  import { type Query } from "../../lib/query/interfaces";
   import { ItemType } from "../../lib/item";
   import { searchState } from "../../reactives/search.svelte";
   import { type SearchResults, querySearchResults } from "./results.svelte";
@@ -22,42 +20,31 @@
   });
 
   // TODO: useAlternative should be in the query params
-  let useAlternative = $state(false);
+  let preference = $state(false);
 
-  let direct = $state.raw<Query | null>();
-  let alternative = $state.raw<Query | null>();
+  let results = $state.raw<SearchResults[]>([]);
 
-  let searchResults = $state<SearchResults>();
+  let current = $derived(results.length > 1 ? (preference ? results[1] : results[0]) : results[0]);
+  let other = $derived(results.length > 1 ? (preference ? results[0] : results[1]) : undefined);
 
   $effect(() => {
     if (language != null && query != null) {
-      [direct, alternative] = processQuery(query, language);
+      querySearchResults(query, language).then((r) => {
+        results = r;
+      });
     } else {
-      direct = undefined;
-      alternative = undefined;
+      results = [];
     }
-  });
-
-  $effect(() => {
-    const query = useAlternative ? (alternative ?? direct) : direct;
-    if (query == null || language == null) {
-      searchResults = undefined;
-      return;
-    }
-
-    querySearchResults(query, language).then((results) => {
-      searchResults = results;
-    });
   });
 
   $effect(() => {
     const handleScroll = () => {
       if (
-        searchResults != null &&
+        current != null &&
         !searchState.loading &&
         window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000
       ) {
-        searchResults.loadMore();
+        current.loadMore();
       }
     };
 
@@ -67,24 +54,24 @@
 </script>
 
 <main>
-  {#if direct != null}
+  {#if current != null}
     <button
-      class={{ alternative: true, active: alternative != null }}
-      onclick={alternative != null ? () => (useAlternative = !useAlternative) : undefined}
+      class={{ alternative: true, active: other != null }}
+      onclick={other != null ? () => (preference = !preference) : undefined}
     >
-      {#if alternative != null}
-        {@const current = useAlternative ? alternative : direct}
-        {@const other = useAlternative ? direct : alternative}
-
-        <Languages class="alternativeIcon" /> Searching{current}({current.kind()}). Click to search
-        by {other.kind()} instead.
+      {#if other != null}
+        <Languages class="alternativeIcon" /> Searching by {current.kind}. Click to treat your
+        search as {other.kind} instead. ({other.results.length}{other.hasMore ? "+" : ""} result{other
+          .results.length !== 1
+          ? "s"
+          : ""})
       {:else}
-        <Languages class="alternativeIcon" /> Searching{direct}({direct.kind()}).
+        <Languages class="alternativeIcon" /> Searching by {current.kind}.
       {/if}
     </button>
   {/if}
 
-  {#each searchResults?.results as result (result.type === ItemType.jmdict ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
+  {#each current?.results as result (result.type === ItemType.jmdict ? result.id : result.traditional + "|" + result.simplified + "|" + result.pinyin)}
     <Word word={result} />
     <div class="divider"></div>
   {/each}
@@ -92,10 +79,8 @@
   <div class="message">
     {#if searchState.loading}
       Loading...
-    {:else if searchResults?.results.length === 0}
+    {:else if current == null}
       No results
-    {:else if searchResults == null}
-      No more results
     {/if}
   </div>
 </main>

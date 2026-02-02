@@ -1,10 +1,9 @@
 import { pinyinSyllables } from "../data/pinyin";
-import { formatPinyin } from "../format/pinyin";
 import { NativeQuery, NativeQueryState } from "./interfaces";
 import { StringPrefixQuery } from "./prefix";
 
 class PinyinPrefixQuery extends StringPrefixQuery {
-  constructor(private query: string) {
+  constructor(query: string) {
     super(query);
   }
 
@@ -23,10 +22,6 @@ class PinyinPrefixQuery extends StringPrefixQuery {
     }
 
     return nextState;
-  }
-
-  toString() {
-    return ` “${formatPinyin(this.query)}” `;
   }
 
   kind() {

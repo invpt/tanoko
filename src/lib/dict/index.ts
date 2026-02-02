@@ -11,10 +11,10 @@ import jmEntries from "../../assets/gen/jm-entries.bin?url";
 import ceEntries from "../../assets/gen/ce-entries.bin?url";
 import jmOffsets from "../../assets/gen/jm-offsets.bin?url";
 import ceOffsets from "../../assets/gen/ce-offsets.bin?url";
-import { Decoder } from "./decode";
-import { WordLoader } from "./word-loader";
-import { RadixTree } from "./radix-tree";
-import { InvertedIndex } from "./inverted-index";
+import { Decoder } from "./format/decode";
+import { WordLoader } from "./format/word-loader";
+import { RadixTree } from "./format/radix-tree";
+import { InvertedIndex } from "./format/inverted-index";
 import { EnglishQuery, NativeQuery } from "../query/interfaces";
 import { ItemType } from "../item";
 import { NetworkFileReader } from "./storage/network-file-reader";
@@ -38,23 +38,13 @@ export enum Language {
 }
 
 export const dict = {
-  async *search(
+  async search(
     query: EnglishQuery | NativeQuery,
     language: Language,
-  ): AsyncGenerator<DictionaryEntry> {
-    const entryLoader = await _loaders[language]();
-
-    const results =
-      query instanceof EnglishQuery
-        ? (await _invertedIndexes[language]()).search(query)
-        : (await _radixTrees[language]()).search(query);
-
-    for (const id of results) {
-      const entry = await entryLoader.loadEntry(id);
-      if (entry) {
-        yield entry;
-      }
-    }
+  ): Promise<Generator<number, unknown, unknown>> {
+    return query instanceof EnglishQuery
+      ? (await _invertedIndexes[language]()).search(query)
+      : (await _radixTrees[language]()).search(query);
   },
 
   async loadEntry(index: number, language: Language): Promise<DictionaryEntry | undefined> {

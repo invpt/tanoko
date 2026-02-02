@@ -1,6 +1,6 @@
-import { EnglishQuery } from "../query/interfaces";
+import { EnglishQuery } from "../../query/interfaces";
 import { Decoder, StreamDecoder } from "./decode";
-import { FileReader } from "./storage/interfaces";
+import { FileReader } from "../storage/interfaces";
 
 interface SearchMatch {
   docId: number;

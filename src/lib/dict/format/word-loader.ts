@@ -1,6 +1,6 @@
 import { LRUCache } from "lru-cache";
 import { Decoder } from "./decode";
-import { FileReader } from "./storage/interfaces";
+import { FileReader } from "../storage/interfaces";
 
 export class WordLoader<T extends {}> {
   private dataReader: FileReader;

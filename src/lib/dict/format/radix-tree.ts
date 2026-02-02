@@ -1,6 +1,6 @@
-import { NativeQuery, NativeQueryState } from "../query/interfaces";
+import { NativeQuery, NativeQueryState } from "../../query/interfaces";
 import { Decoder } from "./decode";
-import { FileReader } from "./storage/interfaces";
+import { FileReader } from "../storage/interfaces";
 
 type QueueItem = {
   length: number;

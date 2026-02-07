@@ -142,7 +142,7 @@
 
     background-image: linear-gradient(
       90deg,
-      color-mix(in hsl, var(--t-secondary), white 10%) 0%,
+      color-mix(in hsl, var(--t-secondary), var(--t-on-background) 10%) 0%,
       var(--t-secondary) 50%,
       var(--t-secondary) 100%
     );

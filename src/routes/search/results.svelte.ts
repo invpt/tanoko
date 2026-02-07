@@ -1,6 +1,7 @@
 import { dict, DictionaryEntry, Language } from "../../lib/dict";
 import { processQuery } from "../../lib/query";
 import { EnglishQuery, NativeQuery } from "../../lib/query/interfaces";
+import { searchState } from "../../reactives/search.svelte";
 
 export type SearchResults = {
   kind: string;
@@ -19,7 +20,7 @@ export async function querySearchResults(
     return [];
   } else if (queries.length === 1) {
     const [first] = queries;
-    const firstResult = await querySingle(first, language);
+    const firstResult = await searchState.markLoading(querySingle(first, language));
 
     if (firstResult.results.length === 0) {
       return [];
@@ -28,10 +29,9 @@ export async function querySearchResults(
     }
   } else {
     const [first, second] = queries;
-    const [firstResult, secondResult] = await Promise.all([
-      querySingle(first, language),
-      querySingle(second, language),
-    ]);
+    const [firstResult, secondResult] = await searchState.markLoading(
+      Promise.all([querySingle(first, language), querySingle(second, language)]),
+    );
 
     if (firstResult.results.length === 0 && secondResult.results.length === 0) {
       return [];
@@ -79,7 +79,7 @@ async function querySingle(query: EnglishQuery | NativeQuery, language: Language
     get hasMore() {
       return generator != null;
     },
-    loadMore,
+    loadMore: () => searchState.markLoading(loadMore()),
     kind: query.kind(),
   };
 }

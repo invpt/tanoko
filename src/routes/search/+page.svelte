@@ -60,13 +60,11 @@
       onclick={other != null ? () => (preference = !preference) : undefined}
     >
       {#if other != null}
-        <Languages class="alternativeIcon" /> Searching by {current.kind}. Click to treat your
-        search as {other.kind} instead. ({other.results.length}{other.hasMore ? "+" : ""} result{other
+        <Languages class="alternativeIcon" /> Treating your query as {current.kind}. Click to search
+        by {other.kind} instead. ({other.results.length}{other.hasMore ? "+" : ""} result{other
           .results.length !== 1
           ? "s"
           : ""})
-      {:else}
-        <Languages class="alternativeIcon" /> Searching by {current.kind}.
       {/if}
     </button>
   {/if}

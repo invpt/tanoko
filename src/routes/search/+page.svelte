@@ -54,18 +54,16 @@
 </script>
 
 <main>
-  {#if current != null}
+  {#if current != null && other != null}
     <button
       class={{ alternative: true, active: other != null }}
       onclick={other != null ? () => (preference = !preference) : undefined}
     >
-      {#if other != null}
-        <Languages class="alternativeIcon" /> Treating your query as {current.kind}. Click to search
-        by {other.kind} instead. ({other.results.length}{other.hasMore ? "+" : ""} result{other
-          .results.length !== 1
-          ? "s"
-          : ""})
-      {/if}
+      <Languages class="alternativeIcon" /> Treating your query as {current.kind}. Click to search
+      by {other.kind} instead. ({other.results.length}{other.hasMore ? "+" : ""} result{other
+        .results.length !== 1
+        ? "s"
+        : ""})
     </button>
   {/if}
 

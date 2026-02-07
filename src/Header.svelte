@@ -76,7 +76,7 @@
   };
 </script>
 
-<nav class={{ loading: searchState.loading || isDebouncing }}>
+<nav class={{ loading: searchState.loading || isDebouncing, active: isActive("/search") }}>
   <a class="title" href="/" lang="ja">
     <span>ただ</span>
     <span class="titleDeemph">の</span>
@@ -234,6 +234,10 @@
     color: var(--t-on-background);
   }
 
+  nav:not(.active) input {
+    color: color-mix(in hsl, var(--t-on-background), var(--t-background) 35%);
+  }
+
   .search-wrapper button {
     outline: none;
     border: none;
@@ -255,14 +259,19 @@
     background-color: color-mix(in hsl, var(--bg), black 10%);
   }
 
-  .search-wrapper .japanese {
+  .search-wrapper button.japanese {
     border-top-right-radius: 16px;
     border-bottom-right-radius: 16px;
   }
 
-  .search-wrapper .selected {
+  .search-wrapper button.selected {
     --bg: var(--t-primary);
     --fg: var(--t-on-primary);
+  }
+
+  nav:not(.active) .search-wrapper button.selected {
+    filter: saturate(75%);
+    opacity: 65%;
   }
 
   .buttons {

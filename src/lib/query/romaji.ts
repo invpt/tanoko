@@ -1,13 +1,96 @@
 import { romajiSyllables } from "../data/romaji";
-import { NativeQuery } from "./interfaces";
-import { StringPrefixQuery } from "./prefix";
+import { NativeQuery, NativeQueryState } from "./interfaces";
 
-class RomajiPrefixQuery extends StringPrefixQuery {
+class SuffixTrieNode {
+  children: Map<number, SuffixTrieNode> = new Map();
+  isComplete: boolean = false;
+  stateNumber: number = -1;
+}
+
+class RomajiPrefixQuery extends NativeQuery {
+  private knownBytes: Uint8Array;
+  private suffixTrie: SuffixTrieNode;
+  private baseStateCount: number;
+  private stateToNode: Map<number, SuffixTrieNode> = new Map();
+
   constructor(query: string, possibleSuffixes: string[] = []) {
-    super(query);
+    super();
 
-    // TODO: make use of this for more precise matching of incomplete romaji prefixes
-    possibleSuffixes;
+    this.knownBytes = new TextEncoder().encode(query);
+    this.baseStateCount = this.knownBytes.length;
+    this.suffixTrie = this.buildSuffixTrie(possibleSuffixes);
+  }
+
+  private buildSuffixTrie(suffixes: string[]): SuffixTrieNode {
+    const root = new SuffixTrieNode();
+    let stateCounter = this.baseStateCount;
+
+    root.stateNumber = stateCounter++;
+    this.stateToNode.set(root.stateNumber, root);
+
+    for (const suffix of suffixes) {
+      const bytes = new TextEncoder().encode(suffix);
+      let current = root;
+
+      for (const byte of bytes) {
+        if (!current.children.has(byte)) {
+          const newNode = new SuffixTrieNode();
+          newNode.stateNumber = stateCounter++;
+          this.stateToNode.set(newNode.stateNumber, newNode);
+          current.children.set(byte, newNode);
+        }
+        current = current.children.get(byte)!;
+      }
+      current.isComplete = true;
+    }
+
+    return root;
+  }
+
+  private findNodeByState(stateNumber: number): SuffixTrieNode | null {
+    return this.stateToNode.get(stateNumber) || null;
+  }
+
+  transition(from: NativeQueryState, by: number): NativeQueryState {
+    if (from === undefined) {
+      return undefined;
+    }
+
+    if (from < 0) {
+      return -1;
+    }
+
+    // First stage: we're matching directly known bytes
+    if (from < this.baseStateCount) {
+      if (this.knownBytes[from] !== by) {
+        return -1;
+      }
+
+      const nextState = from + 1;
+      if (nextState === this.baseStateCount && this.suffixTrie.children.size === 0) {
+        // No possible suffixes, we're done
+        return undefined;
+      } else {
+        return nextState;
+      }
+    }
+
+    // Second stage: we're in the suffix trie
+    const currentNode = this.findNodeByState(from);
+    if (currentNode == null) {
+      return -1;
+    }
+
+    const nextNode = currentNode.children.get(by);
+    if (nextNode != null) {
+      if (nextNode.isComplete) {
+        return undefined;
+      } else {
+        return nextNode.stateNumber;
+      }
+    } else {
+      return -1;
+    }
   }
 
   kind() {
@@ -66,11 +149,7 @@ export function processRomaji(query: string): NativeQuery | null {
 
     // We matched the whole query but we're not yet ready to yield kana
     if (currentNode.kana === undefined && !foundSyllable) {
-      if (result.length > 0) {
-        return new RomajiPrefixQuery(result, collectKana(currentNode));
-      } else {
-        return null;
-      }
+      return new RomajiPrefixQuery(result, collectKana(currentNode));
     }
   }
 

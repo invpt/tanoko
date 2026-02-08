@@ -41,12 +41,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            generator/generator
-            dist
-            datafiles
-          key: generator-outputs-${{ steps.generator-hash.outputs.hash }}
-          restore-keys: |
-            generator-outputs-
+            src/gen
+            src/assets/gen
+          key: generator-outputs-${{ steps.generator-hash.outputs.hash }}-${{ steps.date.outputs.week }}
       - name: Download rclone
         run: |
           curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip
@@ -82,7 +79,6 @@ jobs:
           go build -o generator .
           ./generator
       - name: Build
-        if: steps.cache-generator-outputs.outputs.cache-hit != 'true'
         env:
           DATA_BASE_URL: https://data.tanoko.org/
         run: |
@@ -90,7 +86,6 @@ jobs:
           rm -r dist/
           pnpm run build
       - name: Separate bin and woff2 files
-        if: steps.cache-generator-outputs.outputs.cache-hit != 'true'
         run: |
           mkdir -p datafiles
           rm -r datafiles/

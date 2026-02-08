@@ -227,11 +227,8 @@
     user-select: none;
     cursor: pointer;
 
-    --bg: var(--t-background);
-    --fg: var(--t-on-background);
-
-    background-color: var(--bg);
-    color: var(--fg);
+    background-color: var(--t-background);
+    color: var(--t-on-background);
 
     padding: 4px 8px;
 
@@ -239,7 +236,7 @@
   }
 
   .search-wrapper button:hover {
-    background-color: color-mix(in hsl, var(--bg), black 10%);
+    background-color: color-mix(in hsl, var(--t-background), var(--t-on-background) 10%);
   }
 
   .search-wrapper button.japanese {
@@ -248,13 +245,20 @@
   }
 
   .search-wrapper button.selected {
-    --bg: var(--t-primary);
-    --fg: var(--t-on-primary);
+    background-color: var(--t-primary);
+    color: var(--t-on-primary);
+  }
+
+  .search-wrapper button.selected:hover {
+    background-color: color-mix(in hsl, var(--t-primary), var(--t-on-primary) 10%);
   }
 
   nav:not(.active) .search-wrapper button.selected {
-    filter: saturate(75%);
-    opacity: 65%;
+    background-color: color-mix(in hsl, var(--t-primary), black 20%);
+  }
+
+  nav:not(.active) .search-wrapper button.selected:hover {
+    background-color: color-mix(in hsl, var(--t-primary), black 30%);
   }
 
   .buttons {

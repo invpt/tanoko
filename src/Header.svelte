@@ -2,22 +2,11 @@
   import type { KeyboardEventHandler } from "svelte/elements";
   import { isActive, navigate } from "./router";
   import { Language } from "./lib/dict";
-  import { searchParams } from "sv-router";
   import { searchState } from "./reactives/search.svelte";
   import AlertDialog from "./components/base/AlertDialog.svelte";
   import { ChineseCharacterVariant, preferences } from "./reactives/preferences.svelte";
 
-  let query = $derived(searchParams.get("q") ?? "");
-  let language = $derived.by(() => {
-    const param = searchParams.get("lang");
-    switch (param) {
-      case Language.Chinese:
-      case Language.Japanese:
-        return param;
-      default:
-        return undefined;
-    }
-  });
+  let query = $derived(searchState.query);
 
   let isDebouncing = $state(false);
   let debounceTimer: number | null = null;
@@ -27,8 +16,27 @@
     { value: Language.Japanese, label: "Japanese" },
   ];
 
-  $effect(() => {
-    query;
+  const search = () => {
+    if (searchState.language == null) {
+      showLanguageDialog = true;
+      return;
+    }
+
+    searchState.query = query;
+
+    if (!searchState.active) {
+      navigate("/search");
+    }
+  };
+
+  const handleLanguageChange = (selectedLang: Language) => {
+    searchState.language = selectedLang;
+    search();
+  };
+
+  const handleQueryChange = (newQuery: string) => {
+    query = newQuery;
+
     if (isActive("/search")) {
       if (debounceTimer) {
         clearTimeout(debounceTimer);
@@ -41,31 +49,6 @@
         search();
       }, 200);
     }
-  });
-
-  const search = (selected?: Language) => {
-    if (selected) {
-      language = selected;
-    }
-
-    if (language == null) {
-      // Show dialog to select language
-      showLanguageDialog = true;
-      return;
-    }
-
-    if (isActive("/search")) {
-      searchParams.set("q", query, { replace: true });
-      searchParams.set("lang", language, { replace: true });
-    } else {
-      navigate("/search", {
-        search: new URLSearchParams({ q: query, lang: language }).toString(),
-      });
-    }
-  };
-
-  const handleLanguageAction = (selectedLang: Language) => {
-    search(selectedLang);
   };
 
   const handleKeyUp: KeyboardEventHandler<HTMLInputElement> = (ev) => {
@@ -84,10 +67,10 @@
   </a>
   <span class="search-wrapper">
     <input
-      bind:value={query}
+      bind:value={() => query, handleQueryChange}
       onkeyup={handleKeyUp}
       placeholder="Search"
-      lang={language === Language.Chinese
+      lang={searchState.language === Language.Chinese
         ? preferences.chinese.characterVariant === ChineseCharacterVariant.simplified
           ? "zh-Hans"
           : "zh-Hant"
@@ -98,16 +81,16 @@
       spellcheck="false"
     />
     <button
-      onclick={() => search(Language.Chinese)}
-      class={["chinese", { selected: language === Language.Chinese }]}
+      onclick={() => handleLanguageChange(Language.Chinese)}
+      class={["chinese", { selected: searchState.language === Language.Chinese }]}
       title="Chinese"
       lang="zh-Hans"
     >
       中
     </button>
     <button
-      onclick={() => search(Language.Japanese)}
-      class={["japanese", { selected: language === Language.Japanese }]}
+      onclick={() => handleLanguageChange(Language.Japanese)}
+      class={["japanese", { selected: searchState.language === Language.Japanese }]}
       title="Japanese"
       lang="ja"
     >
@@ -125,7 +108,7 @@
   description="Choose a language for your search."
   actions={languageActions}
   cancelText="Cancel"
-  onAction={handleLanguageAction}
+  onAction={handleLanguageChange}
 />
 
 <style>

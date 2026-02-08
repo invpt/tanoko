@@ -1,35 +1,26 @@
 <script lang="ts">
-  import { searchParams } from "sv-router";
-  import { Language } from "../../lib/dict";
   import Word from "../../components/Word.svelte";
   import { Languages } from "lucide-svelte";
   import { ItemType } from "../../lib/item";
   import { searchState } from "../../reactives/search.svelte";
   import { type SearchResults, querySearchResults } from "./results.svelte";
 
-  const query = $derived(searchParams.get("q"));
-  const language = $derived.by(() => {
-    const param = searchParams.get("lang");
-    switch (param) {
-      case Language.Chinese:
-      case Language.Japanese:
-        return param;
-      default:
-        return undefined;
-    }
-  });
-
-  // TODO: useAlternative should be in the query params
-  let preference = $state(false);
-
   let results = $state.raw<SearchResults[]>([]);
 
-  let current = $derived(results.length > 1 ? (preference ? results[1] : results[0]) : results[0]);
-  let other = $derived(results.length > 1 ? (preference ? results[0] : results[1]) : undefined);
+  let current = $derived(
+    results.length > 1 ? (searchState.interpret ? results[1] : results[0]) : results[0],
+  );
+  let other = $derived(
+    results.length > 1 ? (searchState.interpret ? results[0] : results[1]) : undefined,
+  );
 
   $effect(() => {
-    if (language != null && query != null) {
-      querySearchResults(query, language).then((r) => {
+    searchState.updateSearchParams();
+  });
+
+  $effect(() => {
+    if (searchState.language != null && searchState.query != null) {
+      querySearchResults(searchState.query, searchState.language).then((r) => {
         results = r;
       });
     } else {
@@ -57,7 +48,7 @@
   {#if current != null && other != null}
     <button
       class={{ alternative: true, active: other != null }}
-      onclick={other != null ? () => (preference = !preference) : undefined}
+      onclick={other != null ? () => (searchState.interpret = !searchState.interpret) : undefined}
     >
       <Languages class="alternativeIcon" /> Treating your query as {current.kind}. Click to search
       by {other.kind} instead. ({other.results.length}{other.hasMore ? "+" : ""} result{other

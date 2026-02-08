@@ -34,7 +34,17 @@ export type CedictWord = {
 
 export enum Language {
   Chinese = "zh",
-  Japanese = "jp",
+  Japanese = "ja",
+}
+
+export function parseLanguage(lang: string | null | undefined): Language | undefined {
+  switch (lang) {
+    case Language.Chinese:
+    case Language.Japanese:
+      return lang;
+    default:
+      return undefined;
+  }
 }
 
 export const dict = {

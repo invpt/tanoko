@@ -98,6 +98,18 @@
       }
     })(),
   );
+
+  // a very very sad hack :(
+  // flexbox layout adds spaces betweeen each segment.
+  const handleCopy = (event: ClipboardEvent) => {
+    if (event.clipboardData == null) return;
+
+    const selection = document.getSelection();
+    if (selection == null) return;
+
+    event.clipboardData.setData("text/plain", selection.toString().replace(/\s/g, ""));
+    event.preventDefault();
+  };
 </script>
 
 {#snippet ordinal(i: number, first: boolean = true)}
@@ -120,12 +132,12 @@
       : "zh-Hant"
     : "ja"}
 >
-  <div class="headline">
+  <div class="headline" oncopy={handleCopy}>
     {#each headline.segments as segment}
       <ruby>
         <rt
           >{#if word.type === ItemType.jmdict}
-            {#each [...(segment.gloss || "")] as char}<span>{char}</span>{/each}
+            {#each segment.gloss as char}{char}{/each}
           {:else}{segment.gloss}{/if}</rt
         ><rb>{segment.base}</rb>
       </ruby>
@@ -215,11 +227,12 @@
     gap: 4px;
     font-size: 34px;
     line-height: 100%;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   rt {
     all: unset;
-    user-select: none;
     pointer-events: none;
     display: flex;
     justify-content: space-around;
@@ -232,6 +245,8 @@
     display: flex;
     justify-content: space-around;
     line-height: 100%;
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   .zh rt {

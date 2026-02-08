@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/invpt/tanoko/generator/src"
+	"github.com/invpt/tanoko/generator/util"
 )
 
 func computeFurigana(jm []src.JMdictWord, kj []src.Kanjidic2Character) {
@@ -130,17 +131,7 @@ func backtrack(kanjiReadings map[rune][]string, kanji, kana []rune, result []uin
 // runesEqualIgnoringScript compares two runes treating hiragana and katakana as equivalent
 func runesEqualIgnoringScript(r1, r2 rune) bool {
 	// Convert both runes to hiragana for comparison
-	normalizeToHiragana := func(r rune) rune {
-		// Katakana range: U+30A1 to U+30F6
-		// Hiragana range: U+3041 to U+3096
-		// Offset between katakana and hiragana: 0x0060 (96)
-		if r >= 0x30A1 && r <= 0x30F6 {
-			return r - 0x0060
-		}
-		return r
-	}
-
-	return normalizeToHiragana(r1) == normalizeToHiragana(r2)
+	return util.RuneToHiragana(r1) == util.RuneToHiragana(r2)
 }
 
 func appendUnique[T comparable](a []T, i T) []T {

@@ -7,7 +7,7 @@ class LanguagePrefixQuery extends StringPrefixQuery {
     query: string,
     private language: Language,
   ) {
-    super(query);
+    super(convertKatakanaToHiragana(query));
   }
 
   kind(): string {
@@ -25,6 +25,20 @@ export function processNative(query: string, language: Language): NativeQuery | 
   } else {
     return null;
   }
+}
+
+function convertKatakanaToHiragana(text: string): string {
+  return text.replace(/[\u30A0-\u30FF]/g, (char) => {
+    const codePoint = char.codePointAt(0)!;
+    // Convert katakana to hiragana by subtracting the offset
+    // Katakana range: 0x30A0-0x30FF, Hiragana range: 0x3040-0x309F
+    // The offset is 0x60 (96 in decimal)
+    if (codePoint >= 0x30a1 && codePoint <= 0x30f6) {
+      return String.fromCodePoint(codePoint - 0x60);
+    }
+    // Return the character unchanged if it's not in the convertible range
+    return char;
+  });
 }
 
 function hasCjk(query: string): boolean {

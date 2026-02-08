@@ -5,6 +5,7 @@ import (
 	"unicode"
 
 	"github.com/invpt/tanoko/generator/encode"
+	"github.com/invpt/tanoko/generator/util"
 	"github.com/invpt/wordfreq"
 )
 
@@ -70,6 +71,14 @@ func stripSquareBrackets(text string) string {
 	}
 
 	return result
+}
+
+func normalizeKanaToHiragana(text string) string {
+	var result strings.Builder
+	for _, r := range text {
+		result.WriteRune(util.RuneToHiragana(r))
+	}
+	return result.String()
 }
 
 func (e CEDICTEntry) Ref() string {
@@ -148,11 +157,11 @@ func (e JMdictWord) Encode(b *encode.Buffer) {
 
 func (e JMdictWord) Native(add func(text string)) {
 	for _, kanji := range e.Kanji {
-		add(kanji.Text)
+		add(normalizeKanaToHiragana(kanji.Text))
 	}
 
 	for _, kana := range e.Kana {
-		add(kana.Text)
+		add(normalizeKanaToHiragana(kana.Text))
 	}
 }
 
@@ -220,11 +229,11 @@ func (e JMnedictWord) Encode(b *encode.Buffer) {
 
 func (e JMnedictWord) Native(add func(text string)) {
 	for _, kanji := range e.Kanji {
-		add(kanji.Text)
+		add(normalizeKanaToHiragana(kanji.Text))
 	}
 
 	for _, kana := range e.Kana {
-		add(kana.Text)
+		add(normalizeKanaToHiragana(kana.Text))
 	}
 }
 

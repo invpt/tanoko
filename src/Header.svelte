@@ -5,12 +5,14 @@
   import { searchState } from "./reactives/search.svelte";
   import AlertDialog from "./components/base/AlertDialog.svelte";
   import { ChineseCharacterVariant, preferences } from "./reactives/preferences.svelte";
+  import { X } from "lucide-svelte";
 
   let query = $derived(searchState.query);
 
   let isDebouncing = $state(false);
   let debounceTimer: number | null = null;
   let showLanguageDialog = $state(false);
+  let searchInput: HTMLInputElement;
   const languageActions = [
     { value: Language.Chinese, label: "Chinese" },
     { value: Language.Japanese, label: "Japanese" },
@@ -57,6 +59,11 @@
       search();
     }
   };
+
+  const handleClear = () => {
+    query = "";
+    searchInput?.focus();
+  };
 </script>
 
 <nav class={{ loading: searchState.loading || isDebouncing, active: isActive("/search") }}>
@@ -67,6 +74,7 @@
   </a>
   <span class="search-wrapper">
     <input
+      bind:this={searchInput}
       bind:value={() => query, handleQueryChange}
       onkeyup={handleKeyUp}
       placeholder="Search"
@@ -80,9 +88,13 @@
       autocorrect="off"
       spellcheck="false"
     />
+    <button onclick={handleClear} class="clear" title="Clear the search query">
+      <X size={18} />
+    </button>
+    <div style="width: 8px"></div>
     <button
       onclick={() => handleLanguageChange(Language.Chinese)}
-      class={["chinese", { selected: searchState.language === Language.Chinese }]}
+      class={["language", "chinese", { selected: searchState.language === Language.Chinese }]}
       title="Chinese"
       lang="zh-Hans"
     >
@@ -90,7 +102,7 @@
     </button>
     <button
       onclick={() => handleLanguageChange(Language.Japanese)}
-      class={["japanese", { selected: searchState.language === Language.Japanese }]}
+      class={["language", "japanese", { selected: searchState.language === Language.Japanese }]}
       title="Japanese"
       lang="ja"
     >
@@ -221,7 +233,28 @@
     color: color-mix(in hsl, var(--t-on-background), var(--t-background) 35%);
   }
 
-  .search-wrapper button {
+  .clear {
+    outline: none;
+    border: none;
+    user-select: none;
+    cursor: pointer;
+
+    background-color: var(--t-background);
+    color: color-mix(in hsl, var(--t-on-background), var(--t-background) 50%);
+
+    padding: 4px 10px;
+  }
+
+  .clear {
+    border-top-right-radius: 16px;
+    border-bottom-right-radius: 16px;
+  }
+
+  .clear:hover {
+    color: color-mix(in hsl, var(--t-on-background), var(--t-background) 35%);
+  }
+
+  .language {
     outline: none;
     border: none;
     user-select: none;
@@ -230,34 +263,39 @@
     background-color: var(--t-background);
     color: var(--t-on-background);
 
-    padding: 4px 8px;
+    padding: 4px 10px;
 
     font-size: 1.1em;
   }
 
-  .search-wrapper button:hover {
-    background-color: color-mix(in hsl, var(--t-background), var(--t-on-background) 10%);
+  .language.chinese {
+    border-top-left-radius: 16px;
+    border-bottom-left-radius: 16px;
   }
 
-  .search-wrapper button.japanese {
+  .language.japanese {
     border-top-right-radius: 16px;
     border-bottom-right-radius: 16px;
   }
 
-  .search-wrapper button.selected {
+  .language:hover {
+    background-color: color-mix(in hsl, var(--t-background), var(--t-on-background) 10%);
+  }
+
+  .language.selected {
     background-color: var(--t-primary);
     color: var(--t-on-primary);
   }
 
-  .search-wrapper button.selected:hover {
+  .language.selected:hover {
     background-color: color-mix(in hsl, var(--t-primary), var(--t-on-primary) 10%);
   }
 
-  nav:not(.active) .search-wrapper button.selected {
+  nav:not(.active) .language.selected {
     background-color: color-mix(in hsl, var(--t-primary), black 20%);
   }
 
-  nav:not(.active) .search-wrapper button.selected:hover {
+  nav:not(.active) .language.selected:hover {
     background-color: color-mix(in hsl, var(--t-primary), black 30%);
   }
 
